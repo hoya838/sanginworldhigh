@@ -60,6 +60,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           onChange={e => setForm({ ...form, videoModel: e.target.value })}
         >
           <option value="kling">Kling 3.0 — std 모드 (기본)</option>
+          <option value="kling-pro">Kling 3.0 — pro 모드 (고품질)</option>
           <option value="veo3_fast">Veo 3.1 Fast</option>
           <option value="veo3_lite">Veo 3.1 Lite</option>
         </select>

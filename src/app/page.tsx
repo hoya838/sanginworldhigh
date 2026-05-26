@@ -277,19 +277,19 @@ export default function Home() {
 
       // ── VIDEO GENERATION ──
       currentStep = 'video'
-      const isKling = config.videoModel === 'kling'
-      const modelLabel = isKling ? 'Kling 3.0' : 'Veo 3.1 Fast'
+      const isKling = config.videoModel === 'kling' || config.videoModel === 'kling-pro'
+      const modelLabel = config.videoModel === 'kling-pro' ? 'Kling 3.0 Pro' : isKling ? 'Kling 3.0' : 'Veo 3.1 Fast'
       updateStep(3, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
       let url: string
 
       if (isKling) {
         try {
-          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'kling')
+          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel)
         } catch (firstErr: any) {
           console.warn('[video] Kling 1차 실패, 10초 후 재시도:', firstErr.message)
           updateStep(3, 'active', 'Kling 서버 오류 — 재시도 중...')
           await sleep(10000)
-          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'kling')
+          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel)
         }
       } else {
         const isServerErr = (e: any) => e.message?.includes('Internal Error') || e.message?.includes('500')
@@ -479,7 +479,7 @@ export default function Home() {
     console.log('[runVideoGeneration] imageUrls:', imageUrls)
     console.log('[runVideoGeneration] prompt:', videoPrompt.slice(0, 200))
 
-    const isKling = model === 'kling'
+    const isKling = model === 'kling' || model === 'kling-pro'
     let requestBody: Record<string, unknown>
     let provider: string
 
@@ -491,7 +491,7 @@ export default function Home() {
           prompt: videoPrompt,
           aspect_ratio: ratio,
           duration: '8',
-          mode: 'std',
+          mode: model === 'kling-pro' ? 'pro' : 'std',
           sound: false,
           ...(imageUrls.length >= 1 && { image_urls: imageUrls }),
         },
