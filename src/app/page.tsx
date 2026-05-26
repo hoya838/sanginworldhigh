@@ -236,7 +236,7 @@ export default function Home() {
         const step2Input = topic.step2_input || [
           `- 선택 주제: ${topic.title} / ${topic.description} / story_arc: ${topic.story_arc?.opening} → ${topic.story_arc?.build} → ${topic.story_arc?.payoff} / emotional_journey: ${topic.emotional_journey}`,
           `- 영상 비율: ${ratio}`,
-          `- 총 길이: 8s`,
+          `- 총 길이: 10s`,
           `- 첫 프레임 이미지: 첨부`,
         ].join('\n')
         step2Output = await callGemini(config.modelFlash, prompts.step2, images, fingerprintBlock + step2Input)
@@ -250,11 +250,17 @@ export default function Home() {
       currentStep = 'step3'
       updateStep(1, 'active', '영상 프롬프트와 이미지 프롬프트를 분석하고 있어요.')
       {
-        const match = step2Output.match(/\[STORYBOARD → STEP 3\]([\s\S]*?)(?:\n---|\n\[|$)/)
-        const storyboardBlock = match
-          ? '[STORYBOARD → STEP 3]\n' + match[1].trim()
-          : step2Output
-        step3Output = await callGemini(config.modelFlash, prompts.step3, images, fingerprintBlock + storyboardBlock)
+        const match3b = step2Output.match(/\[STORYBOARD → STEP 3B\]([\s\S]*?)(?:\n---|\n\[|$)/)
+        const match3a = step2Output.match(/\[STORYBOARD → STEP 3A\]([\s\S]*?)(?:\n---|\n\[|$)/)
+        const block3b = match3b ? '[STORYBOARD → STEP 3B]\n' + match3b[1].trim() : step2Output
+        const block3a = match3a ? '[STORYBOARD → STEP 3A]\n' + match3a[1].trim() : step2Output
+        const prompt3a = prompts.step3a || prompts.step3
+        const prompt3b = prompts.step3b || prompts.step3
+        const [out3a, out3b] = await Promise.all([
+          callGemini(config.modelFlash, prompt3a, images, fingerprintBlock + block3a),
+          callGemini(config.modelFlash, prompt3b, images, fingerprintBlock + block3b),
+        ])
+        step3Output = [out3a || '', out3b || ''].filter(Boolean).join('\n\n')
         if (!step3Output) throw new Error('STEP 3: 이미지 프롬프트 생성에 실패했습니다.')
         setGenStep3Output(step3Output)
         imagePrompts = parseStep3Prompts(step3Output)
@@ -489,7 +495,7 @@ export default function Home() {
         input: {
           prompt: videoPrompt,
           aspect_ratio: ratio,
-          duration: '8',
+          duration: '10',
           mode: model === 'kling-pro' ? 'pro' : 'std',
           sound: false,
           ...(imageUrls.length >= 1 && { image_urls: imageUrls }),
@@ -502,7 +508,7 @@ export default function Home() {
         input: {
           prompt: videoPrompt,
           aspect_ratio: ratio,
-          duration: 8,
+          duration: 10,
           resolution: '1080p',
           generate_audio: true,
           ...(imageUrls.length >= 1 && { first_frame_url: imageUrls[0] }),
@@ -599,17 +605,44 @@ export default function Home() {
   function parseStep3Prompts(text: string): ImagePrompt[] {
     const prompts: ImagePrompt[] = []
     const fallback = 'CGI, 3D render, illustration, watermark, text, plastic skin, distorted face, extra limbs'
-    const s1 = text.match(/\[SCENE 1\]\s*\nPrompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\nAspect Ratio:|$)/s)
-    const s2 = text.match(/\[SCENE 2\]\s*\nPrompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\nAspect Ratio:|$)/s)
-    if (s1) prompts.push({ prompt: s1[1].trim(), negativePrompt: s1[2]?.trim() || fallback })
-    if (s2) prompts.push({ prompt: s2[1].trim(), negativePrompt: s2[2]?.trim() || fallback })
+
+    const extractFromBlock = (block: string): ImagePrompt => {
+      const m = block.match(/Prompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\n[A-Z\[]|$)/s)
+      return {
+        prompt: m?.[1]?.trim() || block.trim().substring(0, 500),
+        negativePrompt: m?.[2]?.trim() || fallback,
+      }
+    }
+
+    const ref3a = text.match(/\[3A REFERENCE SHEET\]([\s\S]*?)(?=\[3B STORYBOARD PANELS\]|\[--|$)/)
+    const ref3b = text.match(/\[3B STORYBOARD PANELS\]([\s\S]*?)(?=\[--|$)/)
+    if (ref3a || ref3b) {
+      if (ref3a) prompts.push(extractFromBlock(ref3a[1]))
+      if (ref3b) prompts.push(extractFromBlock(ref3b[1]))
+    } else {
+      const s1 = text.match(/\[SCENE 1\]\s*\nPrompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\nAspect Ratio:|$)/s)
+      const s2 = text.match(/\[SCENE 2\]\s*\nPrompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\nAspect Ratio:|$)/s)
+      if (s1) prompts.push({ prompt: s1[1].trim(), negativePrompt: s1[2]?.trim() || fallback })
+      if (s2) prompts.push({ prompt: s2[1].trim(), negativePrompt: s2[2]?.trim() || fallback })
+    }
+
     if (prompts.length === 0) prompts.push({ prompt: text.substring(0, 500), negativePrompt: fallback })
     return prompts
   }
 
   function extractVideoPrompt(step2Text: string) {
+    // Priority: [SEEDANCE VIDEO PROMPT] block (Korean timestamp format)
+    const seedanceMatch = step2Text.match(/\[SEEDANCE VIDEO PROMPT\]([\s\S]*?)(?:\n---|\n\[|$)/)
+    if (seedanceMatch) return seedanceMatch[1].trim()
+
     const charRefMatch = step2Text.match(/Character Reference:\s*(.+)/)
     const charRef = charRefMatch ? charRefMatch[1].trim() : ''
+
+    // Panel N | format (new multi-panel storyboard)
+    const panelBlocks = [...step2Text.matchAll(/Panel \d+\s*\|[^\n]*\n([\s\S]*?)(?=Panel \d+\s*\||---|\[|$)/g)]
+    if (panelBlocks.length > 0) {
+      return panelBlocks.map(m => m[1].replace(/^(?:Shot|Desc|Camera|Motion)[^\n]*\n?/gm, '').trim()).filter(Boolean).join(', cut to ')
+    }
 
     const s1 = step2Text.match(/Scene 1\s*\|[^\n]*\n([\s\S]*?)(?:\n---|\nScene 2|$)/)
     const s2 = step2Text.match(/Scene 2\s*\|[^\n]*\n([\s\S]*?)(?:\n---|\nStyle:|$)/)
