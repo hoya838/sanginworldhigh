@@ -9,8 +9,8 @@ export function getServerConfig(): AppConfig {
       username: process.env.APP_USERNAME || '사용자',
       modelLite: process.env.MODEL_LITE || 'gemini-3.1-flash-lite-preview',
       modelFlash: process.env.MODEL_FLASH || 'gemini-3.1-flash-lite-preview',
-      imageModel: process.env.IMAGE_MODEL || 'nano-banana-2',
-      videoModel: process.env.VIDEO_MODEL || 'kling',
+      imageModel: process.env.IMAGE_MODEL || 'gpt-image-2-image-to-image',
+      videoModel: process.env.VIDEO_MODEL || 'seedance2',
     }
   }
   // 로컬 개발: 파일에서 읽기

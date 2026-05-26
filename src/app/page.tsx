@@ -13,8 +13,8 @@ const DEFAULT_CONFIG: AppConfig = {
   geminiKey: '', kieKey: '', username: '사용자',
   modelLite: 'gemini-3.1-flash-lite-preview',
   modelFlash: 'gemini-3.1-flash-lite-preview',
-  imageModel: 'nano-banana-2',
-  videoModel: 'kling',
+  imageModel: 'gpt-image-2-image-to-image',
+  videoModel: 'seedance2',
 }
 
 const DEFAULT_STEPS: StepInfo[] = [
