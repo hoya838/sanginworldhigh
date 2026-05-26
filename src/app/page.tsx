@@ -252,13 +252,13 @@ export default function Home() {
       updateStep(1, 'active', '영상 프롬프트와 이미지 프롬프트를 분석하고 있어요.')
       {
         const match3b = step2Output.match(/\[STORYBOARD → STEP 3B\]([\s\S]*?)(?:\n---|\n\[|$)/)
-        const match3a = step2Output.match(/\[STORYBOARD → STEP 3A\]([\s\S]*?)(?:\n---|\n\[|$)/)
         const block3b = match3b ? '[STORYBOARD → STEP 3B]\n' + match3b[1].trim() : step2Output
-        const block3a = match3a ? '[STORYBOARD → STEP 3A]\n' + match3a[1].trim() : step2Output
         const prompt3a = prompts.step3a || prompts.step3
         const prompt3b = prompts.step3b || prompts.step3
+        // 3A: 핑거프린트 + 원본만 사용 (스토리보드 무관 — 순수 피사체 레퍼런스 시트)
+        // 3B: 핑거프린트 + 스토리보드 블록 사용
         const [out3a, out3b] = await Promise.all([
-          callGemini(config.modelFlash, prompt3a, images, fingerprintBlock + block3a),
+          callGemini(config.modelFlash, prompt3a, images, fingerprintBlock),
           callGemini(config.modelFlash, prompt3b, images, fingerprintBlock + block3b),
         ])
         step3Output = [out3a || '', out3b || ''].filter(Boolean).join('\n\n')
