@@ -515,9 +515,11 @@ export default function Home() {
     } else if (model === 'seedance2') {
       provider = 'seedance'
       // first_frame_url = 핵심컷 (referenceImages[1]) — 스토리 히어로 씬에서 영상 시작
-      // 핵심컷 없으면 원본 이미지 fallback
-      // 씬 연출은 [SEEDANCE VIDEO PROMPT] 텍스트 블록이 담당
+      // imageUrls[0]=스튜디오컷, imageUrls[1]=핵심컷, imageUrls[2]=3x3패널
+      // 핵심컷 → first_frame_url (Start Frame)
+      // 스튜디오컷 + 3x3패널 → reference_image_urls (Reference)
       const seedanceFirstFrame = imageUrls[1] || imageUrls[0] || originalImageUrls[0]
+      const seedanceRefs = [imageUrls[0], imageUrls[2]].filter(Boolean)
       requestBody = {
         model: 'bytedance/seedance-2',
         input: {
@@ -527,6 +529,7 @@ export default function Home() {
           resolution: '1080p',
           generate_audio: true,
           ...(seedanceFirstFrame && { first_frame_url: seedanceFirstFrame }),
+          ...(seedanceRefs.length > 0 && { reference_image_urls: seedanceRefs }),
         },
       }
     } else {
