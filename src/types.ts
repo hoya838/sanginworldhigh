@@ -111,4 +111,5 @@ export interface Prompts {
   step3: string
   step3a?: string
   step3b?: string
+  step3c?: string
 }

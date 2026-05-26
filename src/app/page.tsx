@@ -214,22 +214,6 @@ export default function Home() {
         if (!topic) throw new Error('STEP 1B: 주제 생성에 실패했습니다.')
       }
 
-      // ── STEP 1.5 ──
-      currentStep = 'step1_5'
-      updateStep(0, 'active', '이미지 시각 속성을 분석하고 있어요.')
-      let fingerprintBlock = ''
-      if (prompts.step1_5) {
-        try {
-          const raw1_5 = await callGemini(config.modelFlash, prompts.step1_5, images)
-          const json1_5 = raw1_5.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-          JSON.parse(json1_5)
-          fingerprintBlock = `[IMAGE FINGERPRINT]\n${json1_5}\n[/IMAGE FINGERPRINT]\n\n`
-        } catch (e: any) {
-          console.warn('[step1_5] 핑거프린트 분석 실패, 없이 진행:', e.message)
-        }
-      }
-      const contentCategory = fingerprintBlock.match(/"content_category"\s*:\s*"([^"]+)"/)?.[1] || ''
-
       // ── STEP 2 ──
       currentStep = 'step2'
       updateStep(0, 'active', '주제와 이미지를 바탕으로 스토리보드를 생성하고 있어요.')
@@ -240,37 +224,35 @@ export default function Home() {
           `- 총 길이: 10s`,
           `- 첫 프레임 이미지: 첨부`,
         ].join('\n')
-        step2Output = await callGemini(config.modelFlash, prompts.step2, images, fingerprintBlock + step2Input)
+        step2Output = await callGemini(config.modelFlash, prompts.step2, images, step2Input)
         if (!step2Output) throw new Error('STEP 2: 스토리보드 생성에 실패했습니다.')
         setGenStep2Output(step2Output)
         setGenVideoPrompt(extractVideoPrompt(step2Output))
       }
       updateStep(0, 'done', '스토리보드 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
 
-      // ── STEP 3 ──
+      // ── STEP 3: 이미지 프롬프트 생성 (3종 병렬) ──
       currentStep = 'step3'
-      updateStep(1, 'active', '영상 프롬프트와 이미지 프롬프트를 분석하고 있어요.')
+      updateStep(1, 'active', '스튜디오컷, 핵심컷, 스토리보드 패널 프롬프트를 생성하고 있어요.')
       {
-        const match3b = step2Output.match(/\[STORYBOARD → STEP 3B\]([\s\S]*?)(?:\n---|\n\[|$)/)
-        const block3b = match3b ? '[STORYBOARD → STEP 3B]\n' + match3b[1].trim() : step2Output
+        const keyCutScene = step2Output.match(/\[KEY CUT SCENE\]([\s\S]*?)(?:\n---|\n\[|$)/)?.[1]?.trim() || ''
         const prompt3a = prompts.step3a || prompts.step3
         const prompt3b = prompts.step3b || prompts.step3
-        // 3A: 핑거프린트 + 원본만 사용 (스토리보드 무관 — 순수 피사체 레퍼런스 시트)
-        // 3B: 핑거프린트 + 스토리보드 블록 사용
-        const [out3a, out3b] = await Promise.all([
-          callGemini(config.modelFlash, prompt3a, images, fingerprintBlock),
-          callGemini(config.modelFlash, prompt3b, images, fingerprintBlock + block3b),
+        const prompt3c = prompts.step3c || ''
+        const [out3a, out3b, out3c] = await Promise.all([
+          callGemini(config.modelFlash, prompt3a, images, ''),
+          callGemini(config.modelFlash, prompt3b, images, keyCutScene ? `[KEY CUT SCENE]\n${keyCutScene}` : step2Output.slice(0, 1000)),
+          prompt3c ? callGemini(config.modelFlash, prompt3c, images, step2Output) : Promise.resolve(''),
         ])
-        step3Output = [out3a || '', out3b || ''].filter(Boolean).join('\n\n')
+        step3Output = [out3a || '', out3b || '', out3c || ''].filter(Boolean).join('\n\n')
         if (!step3Output) throw new Error('STEP 3: 이미지 프롬프트 생성에 실패했습니다.')
         setGenStep3Output(step3Output)
         imagePrompts = parseStep3Prompts(step3Output)
       }
       updateStep(1, 'done', '이미지 프롬프트 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
 
-      // ── IMAGE GENERATION ──
+      // ── IMAGE GENERATION: 스튜디오컷 → 핵심컷 → 3x3 패널 순차 생성 ──
       currentStep = 'image'
-      updateStep(2, 'active', '레퍼런스 시트와 스토리보드 패널을 생성하고 있어요.')
       let originalImageUrls: string[] = []
       try {
         originalImageUrls = await uploadOriginalImages(images)
@@ -278,9 +260,30 @@ export default function Home() {
       } catch (uploadErr: any) {
         console.warn('[startGeneration] 원본 이미지 업로드 실패, image_input 없이 진행:', uploadErr.message)
       }
-      referenceImages = await runImageGeneration(imagePrompts, config.imageModel, t0, originalImageUrls, contentCategory)
+      const originalRef = originalImageUrls[0]
+
+      updateStep(2, 'active', '스튜디오컷을 생성하고 있어요.')
+      const studioCutPrompt = imagePrompts[0]
+      const studioCutUrl = studioCutPrompt
+        ? await generateOneImage(config.imageModel, studioCutPrompt, [originalRef].filter(Boolean) as string[], t0)
+        : null
+
+      updateStep(2, 'active', '핵심컷을 생성하고 있어요.')
+      const keyCutPrompt = imagePrompts[1]
+      const keyCutRefs = [originalRef, studioCutUrl].filter(Boolean) as string[]
+      const keyCutUrl = keyCutPrompt
+        ? await generateOneImage(config.imageModel, keyCutPrompt, keyCutRefs, t0)
+        : studioCutUrl
+
+      updateStep(2, 'active', '스토리보드 패널을 생성하고 있어요.')
+      const panelPrompt = imagePrompts[2]
+      const panelUrl = panelPrompt && keyCutUrl
+        ? await generateOneImage(config.imageModel, panelPrompt, [keyCutUrl], t0)
+        : null
+
+      referenceImages = [studioCutUrl, keyCutUrl, panelUrl].filter(Boolean) as string[]
       setGenReferenceImages(referenceImages)
-      updateStep(2, 'done', '레퍼런스 이미지 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
+      updateStep(2, 'done', '이미지 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
 
       // ── VIDEO GENERATION ──
       currentStep = 'video'
@@ -392,17 +395,18 @@ export default function Home() {
   }
 
   // ─── IMAGE GENERATION ───
-  function buildImageInput(model: string, p: ImagePrompt, sceneImageUrl: string | undefined) {
+  function buildImageInput(model: string, p: ImagePrompt, refUrls: string[]) {
+    const validRefs = refUrls.filter(Boolean)
     if (model === 'google/imagen4-fast')
       return { prompt: p.prompt, negative_prompt: p.negativePrompt, aspect_ratio: ratio, num_images: '1' }
     if (model === 'gpt-image-2-image-to-image')
-      return { prompt: p.prompt, aspect_ratio: ratio, resolution: '2K', ...(sceneImageUrl && { input_urls: [sceneImageUrl] }) }
-    return { prompt: p.prompt, aspect_ratio: ratio, resolution: '2K', output_format: 'jpg', ...(sceneImageUrl && { image_input: [sceneImageUrl] }) }
+      return { prompt: p.prompt, aspect_ratio: ratio, resolution: '2K', ...(validRefs.length > 0 && { input_urls: validRefs }) }
+    return { prompt: p.prompt, aspect_ratio: ratio, resolution: '2K', output_format: 'jpg', ...(validRefs.length > 0 && { image_input: validRefs }) }
   }
 
-  async function generateOneImage(model: string, p: ImagePrompt, sceneImageUrl: string | undefined, t0: number): Promise<string> {
-    const input = buildImageInput(model, p, sceneImageUrl)
-    console.log('[generateOneImage] model:', model, '| ref:', sceneImageUrl ?? '없음')
+  async function generateOneImage(model: string, p: ImagePrompt, refUrls: string[], t0: number): Promise<string> {
+    const input = buildImageInput(model, p, refUrls)
+    console.log('[generateOneImage] model:', model, '| refs:', refUrls.filter(Boolean).length)
 
     const attempt = async () => {
       const taskRes = await fetch('/api/kie/image/create', {
@@ -444,19 +448,16 @@ export default function Home() {
       contentCategory === 'person_with_food'
 
     if (useOriginalForAll) {
-      console.log(`[runImageGeneration] ${contentCategory || 'unknown'}: 원본 직접 사용 (3A→3B 파이프 스킵)`)
+      console.log(`[runImageGeneration] ${contentCategory || 'unknown'}: 원본 직접 사용`)
       const results: string[] = []
       for (const p of imagePrompts) {
-        results.push(await generateOneImage(model, p, originalRef, t0))
+        results.push(await generateOneImage(model, p, [originalRef].filter(Boolean) as string[], t0))
       }
       return results
     }
 
-    // product / food / person: 3A·3B 병렬 생성, 둘 다 원본 참조
-    // (3A→3B 파이프 제거: 3A 그리드 이미지를 3B 참조로 쓰면 GPT Image 2가 3B도 시트 레이아웃으로 생성하는 문제)
-    // 3B의 피사체 일관성은 PRODUCT ANCHOR 텍스트 프롬프트가 담당
-    console.log(`[runImageGeneration] ${contentCategory}: 3A·3B 병렬 생성 (원본 참조)`)
-    return Promise.all(imagePrompts.map(p => generateOneImage(model, p, originalRef, t0)))
+    console.log(`[runImageGeneration] ${contentCategory}: 원본 참조 병렬 생성`)
+    return Promise.all(imagePrompts.map(p => generateOneImage(model, p, [originalRef].filter(Boolean) as string[], t0)))
   }
 
   async function pollImageTask(taskId: string, t0: number, maxWaitMs = 360000) {
@@ -513,10 +514,10 @@ export default function Home() {
       }
     } else if (model === 'seedance2') {
       provider = 'seedance'
-      // Seedance first_frame_url: 원본 이미지 우선 (제품·음식 일관성 최대화)
-      // 3A/3B 그리드는 멀티패널 레이아웃이므로 영상 프레임으로 부적합
+      // first_frame_url = 핵심컷 (referenceImages[1]) — 스토리 히어로 씬에서 영상 시작
+      // 핵심컷 없으면 원본 이미지 fallback
       // 씬 연출은 [SEEDANCE VIDEO PROMPT] 텍스트 블록이 담당
-      const seedanceFirstFrame = originalImageUrls[0] || imageUrls[0]
+      const seedanceFirstFrame = imageUrls[1] || imageUrls[0] || originalImageUrls[0]
       requestBody = {
         model: 'bytedance/seedance-2',
         input: {
@@ -627,6 +628,18 @@ export default function Home() {
       }
     }
 
+    // 새 파이프라인: [STUDIO CUT] → [KEY CUT] → [STORYBOARD PANEL]
+    const studioCut = text.match(/\[STUDIO CUT\]([\s\S]*?)(?=\[KEY CUT\]|\[STORYBOARD PANEL\]|\[--|$)/)
+    const keyCut = text.match(/\[KEY CUT\]([\s\S]*?)(?=\[STORYBOARD PANEL\]|\[--|$)/)
+    const panelCut = text.match(/\[STORYBOARD PANEL\]([\s\S]*?)(?=\[--|$)/)
+    if (studioCut || keyCut || panelCut) {
+      if (studioCut) prompts.push(extractFromBlock(studioCut[1]))
+      if (keyCut) prompts.push(extractFromBlock(keyCut[1]))
+      if (panelCut) prompts.push(extractFromBlock(panelCut[1]))
+      return prompts
+    }
+
+    // 레거시: [3A REFERENCE SHEET] / [3B STORYBOARD PANELS]
     const ref3a = text.match(/\[3A REFERENCE SHEET\]([\s\S]*?)(?=\[3B STORYBOARD PANELS\]|\[--|$)/)
     const ref3b = text.match(/\[3B STORYBOARD PANELS\]([\s\S]*?)(?=\[--|$)/)
     if (ref3a || ref3b) {

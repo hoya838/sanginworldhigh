@@ -12,5 +12,6 @@ export async function GET() {
   const step3 = JSON.parse(readFileSync(join(PROMPTS_DIR, 'step3.json'), 'utf-8')).prompt
   const step3a = (() => { try { return JSON.parse(readFileSync(join(PROMPTS_DIR, 'step3a.json'), 'utf-8')).prompt } catch { return '' } })()
   const step3b = (() => { try { return JSON.parse(readFileSync(join(PROMPTS_DIR, 'step3b.json'), 'utf-8')).prompt } catch { return '' } })()
-  return NextResponse.json({ step1, step1b, step1_5, step2, step3, step3a, step3b })
+  const step3c = (() => { try { return JSON.parse(readFileSync(join(PROMPTS_DIR, 'step3c.json'), 'utf-8')).prompt } catch { return '' } })()
+  return NextResponse.json({ step1, step1b, step1_5, step2, step3, step3a, step3b, step3c })
 }
