@@ -270,7 +270,7 @@ export default function Home() {
 
       // ── IMAGE GENERATION ──
       currentStep = 'image'
-      updateStep(2, 'active', '레퍼런스 시트를 생성하고, 시트 기반으로 스토리보드를 만들고 있어요.')
+      updateStep(2, 'active', '레퍼런스 시트와 스토리보드 패널을 생성하고 있어요.')
       let originalImageUrls: string[] = []
       try {
         originalImageUrls = await uploadOriginalImages(images)
@@ -452,16 +452,11 @@ export default function Home() {
       return results
     }
 
-    // product / food / person: 3A 레퍼런스 시트 먼저 생성 → 3B에 적용
-    console.log(`[runImageGeneration] ${contentCategory}: 3A 레퍼런스 시트 생성 (원본 참조)`)
-    const sheet3aUrl = await generateOneImage(model, imagePrompts[0], originalRef, t0)
-
-    if (imagePrompts.length === 1) return [sheet3aUrl]
-
-    console.log(`[runImageGeneration] ${contentCategory}: 3B 스토리보드 패널 생성 (3A 시트 참조)`)
-    const panels3bUrl = await generateOneImage(model, imagePrompts[1], sheet3aUrl, t0)
-
-    return [sheet3aUrl, panels3bUrl]
+    // product / food / person: 3A·3B 병렬 생성, 둘 다 원본 참조
+    // (3A→3B 파이프 제거: 3A 그리드 이미지를 3B 참조로 쓰면 GPT Image 2가 3B도 시트 레이아웃으로 생성하는 문제)
+    // 3B의 피사체 일관성은 PRODUCT ANCHOR 텍스트 프롬프트가 담당
+    console.log(`[runImageGeneration] ${contentCategory}: 3A·3B 병렬 생성 (원본 참조)`)
+    return Promise.all(imagePrompts.map(p => generateOneImage(model, p, originalRef, t0)))
   }
 
   async function pollImageTask(taskId: string, t0: number, maxWaitMs = 360000) {
