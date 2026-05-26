@@ -504,7 +504,7 @@ export default function Home() {
           aspect_ratio: ratio,
           duration: 8,
           resolution: '1080p',
-          generate_audio: false,
+          generate_audio: true,
           ...(imageUrls.length >= 1 && { first_frame_url: imageUrls[0] }),
           ...(imageUrls.length >= 2 && { last_frame_url: imageUrls[1] }),
         },
