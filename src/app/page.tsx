@@ -11,7 +11,7 @@ import Toast from '../components/Toast'
 
 const DEFAULT_CONFIG: AppConfig = {
   geminiKey: '', kieKey: '', username: '사용자',
-  modelLite: 'gemini-2.5-flash-lite-preview-06-17',
+  modelLite: 'gemini-2.5-flash-preview-05-20',
   modelFlash: 'gemini-2.5-flash-preview-05-20',
   imageModel: 'gpt-image-2-image-to-image',
   videoModel: 'seedance2',

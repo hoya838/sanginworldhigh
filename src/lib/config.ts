@@ -7,7 +7,7 @@ export function getServerConfig(): AppConfig {
       geminiKey: process.env.GEMINI_KEY || '',
       kieKey: process.env.KIE_KEY || '',
       username: process.env.APP_USERNAME || '사용자',
-      modelLite: process.env.MODEL_LITE || 'gemini-2.5-flash-lite-preview-06-17',
+      modelLite: process.env.MODEL_LITE || 'gemini-2.5-flash-preview-05-20',
       modelFlash: process.env.MODEL_FLASH || 'gemini-2.5-flash-preview-05-20',
       imageModel: process.env.IMAGE_MODEL || 'gpt-image-2-image-to-image',
       videoModel: process.env.VIDEO_MODEL || 'seedance2',
