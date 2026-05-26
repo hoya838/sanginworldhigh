@@ -228,6 +228,7 @@ export default function Home() {
           console.warn('[step1_5] 핑거프린트 분석 실패, 없이 진행:', e.message)
         }
       }
+      const contentCategory = fingerprintBlock.match(/"content_category"\s*:\s*"([^"]+)"/)?.[1] || ''
 
       // ── STEP 2 ──
       currentStep = 'step2'
@@ -277,7 +278,7 @@ export default function Home() {
       } catch (uploadErr: any) {
         console.warn('[startGeneration] 원본 이미지 업로드 실패, image_input 없이 진행:', uploadErr.message)
       }
-      referenceImages = await runImageGeneration(imagePrompts, config.imageModel, t0, originalImageUrls)
+      referenceImages = await runImageGeneration(imagePrompts, config.imageModel, t0, originalImageUrls, contentCategory)
       setGenReferenceImages(referenceImages)
       updateStep(2, 'done', '레퍼런스 이미지 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
 
@@ -428,19 +429,36 @@ export default function Home() {
     }
   }
 
-  async function runImageGeneration(imagePrompts: ImagePrompt[], model: string, t0: number, originalImageUrls: string[] = []) {
+  async function runImageGeneration(imagePrompts: ImagePrompt[], model: string, t0: number, originalImageUrls: string[] = [], contentCategory: string = '') {
     if (imagePrompts.length === 0) return []
 
     const originalRef = originalImageUrls[0]
 
-    // 3A 레퍼런스 시트를 원본 이미지 기반으로 먼저 생성
-    console.log('[runImageGeneration] 3A 레퍼런스 시트 생성 (원본 참조)')
+    // 3A → 3B 파이프 적용 불가 케이스:
+    //   space: 특정 피사체 없음 — 원본(공간 자체)이 가장 완전한 레퍼런스
+    //   person_with_product / person_with_food: 피사체 2개 — 3A가 한 쪽만 커버, 원본이 둘 다 포함
+    //   unknown(핑거프린트 실패): 원본이 가장 안전
+    const useOriginalForAll = !contentCategory ||
+      contentCategory === 'space' ||
+      contentCategory === 'person_with_product' ||
+      contentCategory === 'person_with_food'
+
+    if (useOriginalForAll) {
+      console.log(`[runImageGeneration] ${contentCategory || 'unknown'}: 원본 직접 사용 (3A→3B 파이프 스킵)`)
+      const results: string[] = []
+      for (const p of imagePrompts) {
+        results.push(await generateOneImage(model, p, originalRef, t0))
+      }
+      return results
+    }
+
+    // product / food / person: 3A 레퍼런스 시트 먼저 생성 → 3B에 적용
+    console.log(`[runImageGeneration] ${contentCategory}: 3A 레퍼런스 시트 생성 (원본 참조)`)
     const sheet3aUrl = await generateOneImage(model, imagePrompts[0], originalRef, t0)
 
     if (imagePrompts.length === 1) return [sheet3aUrl]
 
-    // 3B 스토리보드 패널은 3A 시트를 레퍼런스로 사용 → 피사체 일관성 확보
-    console.log('[runImageGeneration] 3B 스토리보드 패널 생성 (3A 시트 참조)')
+    console.log(`[runImageGeneration] ${contentCategory}: 3B 스토리보드 패널 생성 (3A 시트 참조)`)
     const panels3bUrl = await generateOneImage(model, imagePrompts[1], sheet3aUrl, t0)
 
     return [sheet3aUrl, panels3bUrl]
