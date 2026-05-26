@@ -7,9 +7,9 @@ export async function GET(req: NextRequest) {
   const taskId = searchParams.get('taskId')
   const provider = searchParams.get('provider')
 
-  const endpoint = provider === 'kling'
-    ? `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
-    : `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`
+  const endpoint = provider === 'veo'
+    ? `https://api.kie.ai/api/v1/veo/record-info?taskId=${taskId}`
+    : `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`
 
   const res = await fetch(endpoint, {
     headers: { 'Authorization': `Bearer ${config.kieKey}` }

@@ -277,17 +277,17 @@ export default function Home() {
 
       // ── VIDEO GENERATION ──
       currentStep = 'video'
-      const isKling = config.videoModel === 'kling' || config.videoModel === 'kling-pro'
-      const modelLabel = config.videoModel === 'kling-pro' ? 'Kling 3.0 Pro' : isKling ? 'Kling 3.0' : 'Veo 3.1 Fast'
+      const isJobsApi = config.videoModel === 'kling' || config.videoModel === 'kling-pro' || config.videoModel === 'seedance2'
+      const modelLabel = config.videoModel === 'kling-pro' ? 'Kling 3.0 Pro' : config.videoModel === 'seedance2' ? 'Seedance 2.0' : isJobsApi ? 'Kling 3.0' : 'Veo 3.1 Fast'
       updateStep(3, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
       let url: string
 
-      if (isKling) {
+      if (isJobsApi) {
         try {
           url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel)
         } catch (firstErr: any) {
-          console.warn('[video] Kling 1차 실패, 10초 후 재시도:', firstErr.message)
-          updateStep(3, 'active', 'Kling 서버 오류 — 재시도 중...')
+          console.warn('[video] 1차 실패, 10초 후 재시도:', firstErr.message)
+          updateStep(3, 'active', `${modelLabel} 서버 오류 — 재시도 중...`)
           await sleep(10000)
           url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel)
         }
@@ -479,11 +479,10 @@ export default function Home() {
     console.log('[runVideoGeneration] imageUrls:', imageUrls)
     console.log('[runVideoGeneration] prompt:', videoPrompt.slice(0, 200))
 
-    const isKling = model === 'kling' || model === 'kling-pro'
     let requestBody: Record<string, unknown>
     let provider: string
 
-    if (isKling) {
+    if (model === 'kling' || model === 'kling-pro') {
       provider = 'kling'
       requestBody = {
         model: 'kling-3.0/video',
@@ -494,6 +493,20 @@ export default function Home() {
           mode: model === 'kling-pro' ? 'pro' : 'std',
           sound: false,
           ...(imageUrls.length >= 1 && { image_urls: imageUrls }),
+        },
+      }
+    } else if (model === 'seedance2') {
+      provider = 'seedance'
+      requestBody = {
+        model: 'bytedance/seedance-2',
+        input: {
+          prompt: videoPrompt,
+          aspect_ratio: ratio,
+          duration: 8,
+          resolution: '1080p',
+          generate_audio: false,
+          ...(imageUrls.length >= 1 && { first_frame_url: imageUrls[0] }),
+          ...(imageUrls.length >= 2 && { last_frame_url: imageUrls[1] }),
         },
       }
     } else {
@@ -537,21 +550,21 @@ export default function Home() {
       const res: any = await fetch(`/api/kie/video/poll?taskId=${taskId}&provider=${provider}`).then(r => r.json())
       console.log('[pollVideoTask]', JSON.stringify(res))
 
-      if (provider === 'kling') {
+      if (provider !== 'veo') {
         const d = res?.data
         const state = d?.state
         if (state === 'success') {
           let resultUrls: string[] = []
           try { resultUrls = JSON.parse(d.resultJson || '{}').resultUrls || [] } catch {}
           const url = resultUrls[0]
-          if (!url) throw new Error('Kling 영상: resultUrls가 비어 있습니다.')
+          if (!url) throw new Error('영상: resultUrls가 비어 있습니다.')
           return url as string
         }
         if (state === 'fail') {
           const detail = d?.failMsg || d?.failCode || taskId
-          throw new Error(`Kling 영상 생성 실패\n${detail}`)
+          throw new Error(`영상 생성 실패\n${detail}`)
         }
-        console.log(`[pollVideoTask] Kling state="${state}", 경과=${Math.round((Date.now() - start) / 1000)}s`)
+        console.log(`[pollVideoTask] state="${state}", 경과=${Math.round((Date.now() - start) / 1000)}s`)
       } else {
         const flag = res?.data?.successFlag
         const response = res?.data?.response
@@ -579,7 +592,7 @@ export default function Home() {
         }
       }
     }
-    throw new Error(`${provider === 'kling' ? 'Kling' : 'kie.ai'} 영상 작업 시간 초과 (8분)`)
+    throw new Error('영상 작업 시간 초과 (8분)')
   }
 
   // ─── HELPERS ───

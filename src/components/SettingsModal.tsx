@@ -61,6 +61,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
         >
           <option value="kling">Kling 3.0 — std 모드 (기본)</option>
           <option value="kling-pro">Kling 3.0 — pro 모드 (고품질)</option>
+          <option value="seedance2">Seedance 2.0 — 1080P</option>
           <option value="veo3_fast">Veo 3.1 Fast</option>
           <option value="veo3_lite">Veo 3.1 Lite</option>
         </select>

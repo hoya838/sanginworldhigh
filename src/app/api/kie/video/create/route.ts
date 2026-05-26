@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { provider, ...videoBody } = body
 
-  const endpoint = provider === 'kling'
-    ? 'https://api.kie.ai/api/v1/jobs/createTask'
-    : 'https://api.kie.ai/api/v1/veo/generate'
+  const endpoint = provider === 'veo'
+    ? 'https://api.kie.ai/api/v1/veo/generate'
+    : 'https://api.kie.ai/api/v1/jobs/createTask'
 
   const res = await fetch(endpoint, {
     method: 'POST',
