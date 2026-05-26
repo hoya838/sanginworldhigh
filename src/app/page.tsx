@@ -269,7 +269,7 @@ export default function Home() {
 
       // ── IMAGE GENERATION ──
       currentStep = 'image'
-      updateStep(2, 'active', '원본 이미지를 업로드하고 레퍼런스 이미지를 생성하고 있어요.')
+      updateStep(2, 'active', '레퍼런스 시트를 생성하고, 시트 기반으로 스토리보드를 만들고 있어요.')
       let originalImageUrls: string[] = []
       try {
         originalImageUrls = await uploadOriginalImages(images)
@@ -429,24 +429,21 @@ export default function Home() {
   }
 
   async function runImageGeneration(imagePrompts: ImagePrompt[], model: string, t0: number, originalImageUrls: string[] = []) {
-    const twoOriginals = originalImageUrls.length >= 2
+    if (imagePrompts.length === 0) return []
 
-    if (twoOriginals) {
-      // 이미지 2장: 각 씬이 독립적 → 병렬 생성
-      console.log('[runImageGeneration] 병렬 생성 시작')
-      return Promise.all(imagePrompts.map((p, i) => {
-        const sceneImageUrl = originalImageUrls[i] ?? originalImageUrls[0]
-        return generateOneImage(model, p, sceneImageUrl, t0)
-      }))
-    }
+    const originalRef = originalImageUrls[0]
 
-    // 이미지 1장: 모든 씬이 원본을 ref로 사용 — Scene 1 결과를 Scene 2 ref로 쓰면
-    // 스토리상 Scene 1에 패키지가 없을 때 Scene 2가 원본 패키지 정보를 잃는 문제 방지
-    const results: string[] = []
-    for (let i = 0; i < imagePrompts.length; i++) {
-      results.push(await generateOneImage(model, imagePrompts[i], originalImageUrls[0], t0))
-    }
-    return results
+    // 3A 레퍼런스 시트를 원본 이미지 기반으로 먼저 생성
+    console.log('[runImageGeneration] 3A 레퍼런스 시트 생성 (원본 참조)')
+    const sheet3aUrl = await generateOneImage(model, imagePrompts[0], originalRef, t0)
+
+    if (imagePrompts.length === 1) return [sheet3aUrl]
+
+    // 3B 스토리보드 패널은 3A 시트를 레퍼런스로 사용 → 피사체 일관성 확보
+    console.log('[runImageGeneration] 3B 스토리보드 패널 생성 (3A 시트 참조)')
+    const panels3bUrl = await generateOneImage(model, imagePrompts[1], sheet3aUrl, t0)
+
+    return [sheet3aUrl, panels3bUrl]
   }
 
   async function pollImageTask(taskId: string, t0: number, maxWaitMs = 360000) {
