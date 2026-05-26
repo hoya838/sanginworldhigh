@@ -76,21 +76,27 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           <option value="google/imagen4-fast">Google Imagen 4 Fast — 텍스트→이미지</option>
         </select>
 
-        <label htmlFor="model-lite">Gemini 모델 — STEP 1·1B (Flash-Lite)</label>
-        <input
-          type="text" id="model-lite"
-          placeholder="gemini-2.5-flash-lite-preview-06-17"
+        <label htmlFor="model-lite">Gemini 모델 — STEP 1·1B (주제 추천)</label>
+        <select
+          id="model-lite"
           value={form.modelLite}
           onChange={e => setForm({ ...form, modelLite: e.target.value })}
-        />
+        >
+          <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview (신규)</option>
+          <option value="gemini-2.5-flash-lite-preview-06-17">Gemini 2.5 Flash Lite Preview</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        </select>
 
-        <label htmlFor="model-flash">Gemini 모델 — STEP 2·3 (Flash)</label>
-        <input
-          type="text" id="model-flash"
-          placeholder="gemini-2.5-flash-preview-05-20"
+        <label htmlFor="model-flash">Gemini 모델 — STEP 2·3 (스토리보드·프롬프트)</label>
+        <select
+          id="model-flash"
           value={form.modelFlash}
           onChange={e => setForm({ ...form, modelFlash: e.target.value })}
-        />
+        >
+          <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview (신규)</option>
+          <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash Preview</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        </select>
 
         <div className="modal-actions">
           <button className="btn-modal-cancel" onClick={onClose}>취소</button>
