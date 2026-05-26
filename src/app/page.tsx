@@ -14,6 +14,7 @@ const DEFAULT_CONFIG: AppConfig = {
   modelLite: 'gemini-2.5-flash-lite-preview-06-17',
   modelFlash: 'gemini-2.5-flash-preview-05-20',
   imageModel: 'nano-banana-2',
+  videoModel: 'kling',
 }
 
 const DEFAULT_STEPS: StepInfo[] = [
@@ -276,35 +277,49 @@ export default function Home() {
 
       // ── VIDEO GENERATION ──
       currentStep = 'video'
-      updateStep(3, 'active', 'kie.ai Veo 3.1 Fast로 영상을 생성하고 있어요.')
+      const isKling = config.videoModel === 'kling'
+      const modelLabel = isKling ? 'Kling 3.0' : 'Veo 3.1 Fast'
+      updateStep(3, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
       let url: string
-      try {
-        url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_fast')
-      } catch (firstErr: any) {
+
+      if (isKling) {
+        try {
+          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'kling')
+        } catch (firstErr: any) {
+          console.warn('[video] Kling 1차 실패, 10초 후 재시도:', firstErr.message)
+          updateStep(3, 'active', 'Kling 서버 오류 — 재시도 중...')
+          await sleep(10000)
+          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'kling')
+        }
+      } else {
         const isServerErr = (e: any) => e.message?.includes('Internal Error') || e.message?.includes('500')
         const isAudioErr = (e: any) => e.message?.toLowerCase().includes('audio')
 
-        if (isAudioErr(firstErr)) {
-          console.warn('[video] 오디오 필터 오류, 15초 후 1회 재시도')
-          updateStep(3, 'active', '오디오 필터 오류 — 재시도 중...')
-          await sleep(15000)
+        try {
           url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_fast')
-        } else if (!isServerErr(firstErr)) {
-          throw firstErr
-        } else {
-          console.warn('[video] veo3_fast 1차 실패, 10초 후 재시도')
-          updateStep(3, 'active', 'Veo 서버 오류 — 재시도 중...')
-          await sleep(10000)
-
-          try {
+        } catch (firstErr: any) {
+          if (isAudioErr(firstErr)) {
+            console.warn('[video] 오디오 필터 오류, 15초 후 1회 재시도')
+            updateStep(3, 'active', '오디오 필터 오류 — 재시도 중...')
+            await sleep(15000)
             url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_fast')
-          } catch (secondErr: any) {
-            if (!isServerErr(secondErr)) throw secondErr
+          } else if (!isServerErr(firstErr)) {
+            throw firstErr
+          } else {
+            console.warn('[video] veo3_fast 1차 실패, 10초 후 재시도')
+            updateStep(3, 'active', 'Veo 서버 오류 — 재시도 중...')
+            await sleep(10000)
 
-            console.warn('[video] veo3_fast 2차 실패, veo3_lite로 전환')
-            updateStep(3, 'active', 'Veo 서버 오류 — veo3_lite로 전환 중...')
-            await sleep(5000)
-            url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_lite')
+            try {
+              url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_fast')
+            } catch (secondErr: any) {
+              if (!isServerErr(secondErr)) throw secondErr
+
+              console.warn('[video] veo3_fast 2차 실패, veo3_lite로 전환')
+              updateStep(3, 'active', 'Veo 서버 오류 — veo3_lite로 전환 중...')
+              await sleep(5000)
+              url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_lite')
+            }
           }
         }
       }
@@ -456,7 +471,7 @@ export default function Home() {
   }
 
   // ─── VIDEO GENERATION ───
-  async function runVideoGeneration(step2Output: string, referenceImages: string[], ratio: string, t0: number, model: string = 'veo3_fast') {
+  async function runVideoGeneration(step2Output: string, referenceImages: string[], ratio: string, t0: number, model: string = 'kling') {
     const videoPrompt = extractVideoPrompt(step2Output)
     const imageUrls = referenceImages.slice(0, 2)
 
@@ -464,68 +479,107 @@ export default function Home() {
     console.log('[runVideoGeneration] imageUrls:', imageUrls)
     console.log('[runVideoGeneration] prompt:', videoPrompt.slice(0, 200))
 
-    const requestBody = {
-      prompt: videoPrompt,
-      model,
-      aspect_ratio: ratio,
-      resolution: '1080p',
-      enableTranslation: false,
-      ...(imageUrls.length >= 2 && {
-        imageUrls: imageUrls.slice(0, 2),
-        generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
-      }),
-      ...(imageUrls.length === 1 && {
-        imageUrls,
-        generationType: 'REFERENCE_2_VIDEO',
-      }),
+    const isKling = model === 'kling'
+    let requestBody: Record<string, unknown>
+    let provider: string
+
+    if (isKling) {
+      provider = 'kling'
+      requestBody = {
+        model: 'kling-3.0/video',
+        input: {
+          prompt: videoPrompt,
+          aspect_ratio: ratio,
+          duration: '8',
+          mode: 'std',
+          sound: false,
+          ...(imageUrls.length >= 1 && { image_urls: imageUrls }),
+        },
+      }
+    } else {
+      provider = 'veo'
+      requestBody = {
+        prompt: videoPrompt,
+        model,
+        aspect_ratio: ratio,
+        resolution: '1080p',
+        enableTranslation: false,
+        ...(imageUrls.length >= 2 && {
+          imageUrls: imageUrls.slice(0, 2),
+          generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
+        }),
+        ...(imageUrls.length === 1 && {
+          imageUrls,
+          generationType: 'REFERENCE_2_VIDEO',
+        }),
+      }
     }
+
     console.log('[runVideoGeneration] 최종 요청 body:', JSON.stringify(requestBody))
 
     const taskRes = await fetch('/api/kie/video/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({ provider, ...requestBody }),
     }).then(r => r.json())
     console.log('[runVideoGeneration] taskRes:', JSON.stringify(taskRes))
 
     const taskId = taskRes?.data?.taskId
     if (!taskId) throw new Error(`kie.ai 영상: taskId를 받지 못했습니다. 응답: ${JSON.stringify(taskRes)}`)
-    return pollVideoTask(taskId, t0)
+    return pollVideoTask(taskId, t0, provider)
   }
 
-  async function pollVideoTask(taskId: string, t0: number, maxWaitMs = 480000) {
+  async function pollVideoTask(taskId: string, t0: number, provider: string = 'kling', maxWaitMs = 480000) {
     const start = Date.now()
     await sleep(10000)
     while (Date.now() - start < maxWaitMs) {
       await sleep(5000)
-      const res: any = await fetch(`/api/kie/video/poll?taskId=${taskId}`).then(r => r.json())
+      const res: any = await fetch(`/api/kie/video/poll?taskId=${taskId}&provider=${provider}`).then(r => r.json())
       console.log('[pollVideoTask]', JSON.stringify(res))
-      const flag = res?.data?.successFlag
-      const response = res?.data?.response
 
-      if (flag === 1 || flag === 0) {
-        // resultUrls 우선, 없으면 originUrls 폴백 (kie.ai가 successFlag 업데이트 전에 originUrls를 먼저 채우는 경우 대응)
-        let urls = response?.resultUrls
-        let urlArr = urls
-        if (typeof urls === 'string') { try { urlArr = JSON.parse(urls) } catch { urlArr = [urls] } }
-        let url = Array.isArray(urlArr) ? urlArr[0] : urlArr
+      if (provider === 'kling') {
+        const d = res?.data
+        const state = d?.state
+        if (state === 'success') {
+          let resultUrls: string[] = []
+          try { resultUrls = JSON.parse(d.resultJson || '{}').resultUrls || [] } catch {}
+          const url = resultUrls[0]
+          if (!url) throw new Error('Kling 영상: resultUrls가 비어 있습니다.')
+          return url as string
+        }
+        if (state === 'fail') {
+          const detail = d?.failMsg || d?.failCode || taskId
+          throw new Error(`Kling 영상 생성 실패\n${detail}`)
+        }
+        console.log(`[pollVideoTask] Kling state="${state}", 경과=${Math.round((Date.now() - start) / 1000)}s`)
+      } else {
+        const flag = res?.data?.successFlag
+        const response = res?.data?.response
 
-        if (!url) {
-          const origins = response?.originUrls
-          url = Array.isArray(origins) ? origins[0] : origins
+        if (flag === 1 || flag === 0) {
+          // resultUrls 우선, 없으면 originUrls 폴백 (kie.ai가 successFlag 업데이트 전에 originUrls를 먼저 채우는 경우 대응)
+          let urls = response?.resultUrls
+          let urlArr = urls
+          if (typeof urls === 'string') { try { urlArr = JSON.parse(urls) } catch { urlArr = [urls] } }
+          let url = Array.isArray(urlArr) ? urlArr[0] : urlArr
+
+          if (!url) {
+            const origins = response?.originUrls
+            url = Array.isArray(origins) ? origins[0] : origins
+          }
+
+          if (flag === 1 && !url) throw new Error('kie.ai 영상: resultUrls가 비어 있습니다.')
+          if (url) return url as string
         }
 
-        if (flag === 1 && !url) throw new Error('kie.ai 영상: resultUrls가 비어 있습니다.')
-        if (url) return url as string
-      }
-
-      if (flag === 2 || flag === 3) {
-        const d = res?.data
-        const detail = d?.failMsg || d?.failCode || response?.errorMessage || JSON.stringify(d)
-        throw new Error(`kie.ai 영상 생성 실패\n${detail}`)
+        if (flag === 2 || flag === 3) {
+          const d = res?.data
+          const detail = d?.failMsg || d?.failCode || response?.errorMessage || JSON.stringify(d)
+          throw new Error(`kie.ai 영상 생성 실패\n${detail}`)
+        }
       }
     }
-    throw new Error('kie.ai 영상 작업 시간 초과 (8분)')
+    throw new Error(`${provider === 'kling' ? 'Kling' : 'kie.ai'} 영상 작업 시간 초과 (8분)`)
   }
 
   // ─── HELPERS ───

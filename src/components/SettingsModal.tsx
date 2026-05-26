@@ -43,7 +43,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           value={form.kieKey}
           onChange={e => setForm({ ...form, kieKey: e.target.value })}
         />
-        <p className="modal-hint">이미지 (Nano Banana 2) + 영상 (Veo 3.1 Fast) 생성에 사용됩니다</p>
+        <p className="modal-hint">이미지 생성 + 영상 생성 (Kling / Veo) 에 사용됩니다</p>
 
         <label htmlFor="username">사용자 이름 (처리 화면 표시용)</label>
         <input
@@ -52,6 +52,18 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           value={form.username}
           onChange={e => setForm({ ...form, username: e.target.value })}
         />
+
+        <label htmlFor="video-model">영상 생성 모델</label>
+        <select
+          id="video-model"
+          value={form.videoModel}
+          onChange={e => setForm({ ...form, videoModel: e.target.value })}
+        >
+          <option value="kling">Kling 3.0 — std 모드 (기본)</option>
+          <option value="veo3_fast">Veo 3.1 Fast</option>
+          <option value="veo3_lite">Veo 3.1 Lite</option>
+        </select>
+        <p className="modal-hint">영상 생성에 사용할 AI 모델을 선택합니다</p>
 
         <label htmlFor="image-model">이미지 생성 모델 (STEP 3)</label>
         <select

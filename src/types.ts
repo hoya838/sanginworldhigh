@@ -100,6 +100,7 @@ export interface AppConfig {
   modelLite: string
   modelFlash: string
   imageModel: string
+  videoModel: string
 }
 
 export interface Prompts {

@@ -10,6 +10,7 @@ export function getServerConfig(): AppConfig {
       modelLite: process.env.MODEL_LITE || 'gemini-2.5-flash-lite-preview-06-17',
       modelFlash: process.env.MODEL_FLASH || 'gemini-2.5-flash-preview-05-20',
       imageModel: process.env.IMAGE_MODEL || 'nano-banana-2',
+      videoModel: process.env.VIDEO_MODEL || 'kling',
     }
   }
   // 로컬 개발: 파일에서 읽기
