@@ -291,12 +291,12 @@ export default function Home() {
 
       if (isJobsApi) {
         try {
-          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel)
+          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel, originalImageUrls)
         } catch (firstErr: any) {
           console.warn('[video] 1차 실패, 10초 후 재시도:', firstErr.message)
           updateStep(3, 'active', `${modelLabel} 서버 오류 — 재시도 중...`)
           await sleep(10000)
-          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel)
+          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel, originalImageUrls)
         }
       } else {
         const isServerErr = (e: any) => e.message?.includes('Internal Error') || e.message?.includes('500')
@@ -487,7 +487,7 @@ export default function Home() {
   }
 
   // ─── VIDEO GENERATION ───
-  async function runVideoGeneration(step2Output: string, referenceImages: string[], ratio: string, t0: number, model: string = 'kling') {
+  async function runVideoGeneration(step2Output: string, referenceImages: string[], ratio: string, t0: number, model: string = 'kling', originalImageUrls: string[] = []) {
     const videoPrompt = extractVideoPrompt(step2Output)
     const imageUrls = referenceImages.slice(0, 2)
 
@@ -513,6 +513,10 @@ export default function Home() {
       }
     } else if (model === 'seedance2') {
       provider = 'seedance'
+      // Seedance first_frame_url: 원본 이미지 우선 (제품·음식 일관성 최대화)
+      // 3A/3B 그리드는 멀티패널 레이아웃이므로 영상 프레임으로 부적합
+      // 씬 연출은 [SEEDANCE VIDEO PROMPT] 텍스트 블록이 담당
+      const seedanceFirstFrame = originalImageUrls[0] || imageUrls[0]
       requestBody = {
         model: 'bytedance/seedance-2',
         input: {
@@ -521,8 +525,7 @@ export default function Home() {
           duration: 10,
           resolution: '1080p',
           generate_audio: true,
-          ...(imageUrls.length >= 1 && { first_frame_url: imageUrls[0] }),
-          ...(imageUrls.length >= 2 && { last_frame_url: imageUrls[1] }),
+          ...(seedanceFirstFrame && { first_frame_url: seedanceFirstFrame }),
         },
       }
     } else {
