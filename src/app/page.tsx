@@ -590,9 +590,9 @@ export default function Home() {
         : 'Veo 3.1 Fast'
       updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
 
-      // Seedance: first_frame = original, refs = studioSheet + storyboardImage + background
+      // Seedance: first_frame = original, refs = storyboardImage + background (studioSheet already embedded in storyboard)
       const firstFrame = originalImageUrls[0] || studioSheet
-      const refUrls = [studioSheet, storyboardImageUrl, backgroundImageUrl].filter(Boolean)
+      const refUrls = [storyboardImageUrl, backgroundImageUrl].filter(Boolean)
       const videoPrompt = 'Create a cinematic advertising video following the provided storyboard and reference images exactly.'
       const url = await runVideoGenerationNew(videoPrompt, firstFrame, refUrls, t0)
 
