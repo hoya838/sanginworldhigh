@@ -290,8 +290,8 @@ export default function Home() {
   function parseStoryboardImagePrompt(text: string): ImagePrompt {
     const block = text.match(/\[STORYBOARD IMAGE PROMPT\]([\s\S]*?)\[\/STORYBOARD IMAGE PROMPT\]/)
     if (!block) return {
-      prompt: '6-panel advertising storyboard reference sheet, 2x3 grid layout, 16:9 landscape format, film director conti board illustration style, panel numbers 1-6, pencil sketch with spot color accents, white paper background, thin black panel borders, professional layout',
-      negativePrompt: 'blurry, watermark, low quality, CGI, 3D render, misaligned grid, extra panels, portrait orientation',
+      prompt: 'Professional advertising storyboard production document, A3 landscape format, multi-section editorial layout, white paper background, dark header bar with campaign title and tagline, left section: subject reference poses labeled front/side/back/detail, key visual elements with text labels, center section: 6 numbered cinematic storyboard frames in vertical sequence, each frame photorealistic film still thumbnail, short scene caption below each frame, right section: brand color palette swatches, cinematography notes per scene, thin dark dividers between sections, labeled annotations in clean sans-serif type, professional production layout, high detail',
+      negativePrompt: 'blurry, watermark, low quality, CGI cartoon, misaligned sections, portrait orientation, pencil sketch, simple grid',
     }
     const promptMatch = block[1].match(/Prompt:\s*([\s\S]+?)(?:\nNegative:|$)/)
     const negMatch = block[1].match(/Negative:\s*(.+?)(?:\n|$)/)
