@@ -96,7 +96,7 @@ export default function InputScreen({
           <span className="section-num">01</span>
           <span className="section-title">이미지 업로드</span>
         </div>
-        <p className="section-sub">제품·인물·음식 이미지를 올려주세요. 최대 2장까지 업로드 가능합니다.</p>
+        <p className="section-sub">제품·인물·음식 이미지를 올려주세요. 여러 각도로 찍은 이미지를 올릴수록 시트 품질이 높아져요. (최대 6장)</p>
 
         {images.length === 0 ? (
           <div
@@ -119,7 +119,7 @@ export default function InputScreen({
                 <button className="remove-btn" onClick={() => onImageRemove(i)}>✕</button>
               </div>
             ))}
-            {images.length < 2 && (
+            {images.length < 6 && (
               <div className="add-more-btn">
                 <input ref={addMoreRef} type="file" accept="image/*" onChange={handleFileInput} />
                 +

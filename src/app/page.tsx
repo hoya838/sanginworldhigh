@@ -97,7 +97,7 @@ export default function Home() {
   async function addImages(files: File[]) {
     const newImages = [...images]
     for (const file of files) {
-      if (newImages.length >= 2) { showToast('최대 2장까지 업로드 가능합니다.'); break }
+      if (newImages.length >= 6) { showToast('최대 6장까지 업로드 가능합니다.'); break }
       const dataUrl = await readFileAsDataURL(file)
       const base64 = dataUrl.split(',')[1]
       newImages.push({ file, dataUrl, base64, mimeType: file.type })
