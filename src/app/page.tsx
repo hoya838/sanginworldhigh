@@ -43,6 +43,7 @@ export default function Home() {
   const [originalImageUrls, setOriginalImageUrls] = useState<string[]>([])
   const [personSetting, setPersonSetting] = useState<PersonSetting>('random')
   const [narrationSetting, setNarrationSetting] = useState<NarrationSetting>('random')
+  const [backgroundImage, setBackgroundImage] = useState<ImageItem | null>(null)
 
   // Topic recommendation
   const [topics, setTopics] = useState<Topic[]>([])
@@ -137,6 +138,16 @@ export default function Home() {
       r.onerror = rej
       r.readAsDataURL(file)
     })
+  }
+
+  async function addBackgroundImage(file: File) {
+    const dataUrl = await readFileAsDataURL(file)
+    const base64 = dataUrl.split(',')[1]
+    setBackgroundImage({ file, dataUrl, base64, mimeType: file.type })
+  }
+
+  function removeBackgroundImage() {
+    setBackgroundImage(null)
   }
 
   function removeImage(idx: number) {
@@ -541,15 +552,24 @@ export default function Home() {
         currentStep = 'conti'
       }
 
+      // Upload background image if provided
+      let backgroundImageUrl = ''
+      if (backgroundImage) {
+        updateStep(0, 'active', '배경 이미지를 업로드하고 있어요.')
+        const [bgUrl] = await uploadOriginalImages([backgroundImage])
+        backgroundImageUrl = bgUrl
+      }
+
       // Gemini: generate 6-cut conti board + Seedance prompts
       updateStep(0, 'active', '6컷 콘티보드를 제작하고 있어요.')
       const settingsCtx = buildSettingsContext()
       const topicCtx = buildTopicContext(topic)
+      const contiImgs = [...images, ...(backgroundImage ? [backgroundImage] : [])]
       const contiRaw = await callGemini(
         config.modelFlash,
         prompts.step2_conti,
-        images,
-        `${topicCtx}\n${settingsCtx}\n[영상 비율] ${ratio}`
+        contiImgs,
+        `${topicCtx}\n${settingsCtx}\n[영상 비율] ${ratio}${backgroundImageUrl ? '\n[배경 이미지] 마지막 이미지가 배경입니다. 영상 배경으로 활용해주세요.' : ''}`
       )
       if (!contiRaw) throw new Error('콘티보드 생성에 실패했습니다.')
       setGenContiScript(contiRaw)
@@ -577,9 +597,9 @@ export default function Home() {
         : 'Veo 3.1 Fast'
       updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
 
-      // Seedance: original image as first_frame, studio sheet + conti board as reference
+      // Seedance: original image as first_frame, studio sheet + conti board + background as reference
       const firstFrame = originalImageUrls[0] || studioSheet
-      const refUrls = [studioSheet, contiBoardUrl].filter(Boolean)
+      const refUrls = [studioSheet, contiBoardUrl, backgroundImageUrl].filter(Boolean)
       const url = await runVideoGenerationNew(seedancePrompt, firstFrame, refUrls, t0)
 
       updateStep(1, 'done', '영상 생성 완료!', `${Math.round((Date.now() - t0) / 1000)}s`)
@@ -616,6 +636,7 @@ export default function Home() {
     setOriginalImageUrls([])
     setPersonSetting('random')
     setNarrationSetting('random')
+    setBackgroundImage(null)
     setScreen('input')
   }
 
@@ -655,6 +676,9 @@ export default function Home() {
           onGenerateStudio={generateStudioSheet}
           onPersonSettingChange={setPersonSetting}
           onNarrationSettingChange={setNarrationSetting}
+          backgroundImage={backgroundImage}
+          onBackgroundImageAdd={addBackgroundImage}
+          onBackgroundImageRemove={removeBackgroundImage}
           onRecommend={runStep1}
           onTopicSelect={t => { setSelectedTopic(t); setShowTopicHint(false) }}
           onGenerate={startGeneration}

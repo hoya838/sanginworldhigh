@@ -23,6 +23,9 @@ interface InputScreenProps {
   onGenerateStudio: () => void
   onPersonSettingChange: (s: PersonSetting) => void
   onNarrationSettingChange: (s: NarrationSetting) => void
+  backgroundImage: ImageItem | null
+  onBackgroundImageAdd: (file: File) => void
+  onBackgroundImageRemove: () => void
   onRecommend: () => void
   onTopicSelect: (t: Topic) => void
   onGenerate: () => void
@@ -47,6 +50,7 @@ export default function InputScreen({
   onRatioChange, onImagesAdd, onImageRemove,
   onSubjectDescriptionChange, onVideoDescriptionChange,
   onGenerateStudio, onPersonSettingChange, onNarrationSettingChange,
+  backgroundImage, onBackgroundImageAdd, onBackgroundImageRemove,
   onRecommend, onTopicSelect, onGenerate,
   generateEnabled, showImageHint, showTopicHint,
 }: InputScreenProps) {
@@ -230,6 +234,26 @@ export default function InputScreen({
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="option-group">
+                <span className="option-label">배경</span>
+                {backgroundImage ? (
+                  <div className="bg-img-preview">
+                    <img src={backgroundImage.dataUrl} alt="배경 이미지" />
+                    <button className="remove-btn" onClick={onBackgroundImageRemove}>✕</button>
+                  </div>
+                ) : (
+                  <label className="bg-img-upload">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => {
+                        if (e.target.files?.[0]) { onBackgroundImageAdd(e.target.files[0]); e.target.value = '' }
+                      }}
+                    />
+                    + 이미지 추가
+                  </label>
+                )}
               </div>
             </div>
 

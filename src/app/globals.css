@@ -372,6 +372,28 @@ body {
 .option-btn:hover { border-color: var(--ink); color: var(--ink); }
 .option-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
 
+/* ─── BACKGROUND IMAGE ─── */
+.bg-img-upload {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 14px; border-radius: 20px; cursor: pointer;
+  border: 1.5px dashed var(--border-strong); font-size: 12px; font-weight: 600;
+  color: var(--muted); transition: all .15s;
+}
+.bg-img-upload:hover { border-color: var(--ink); color: var(--ink); }
+.bg-img-upload input { display: none; }
+.bg-img-preview {
+  position: relative; display: inline-flex; align-items: center; gap: 8px;
+}
+.bg-img-preview img {
+  width: 52px; height: 36px; object-fit: cover;
+  border-radius: 6px; border: 1.5px solid var(--border);
+}
+.bg-img-preview .remove-btn {
+  position: static; width: 20px; height: 20px; font-size: 10px;
+  border-radius: 50%; background: var(--border-strong); color: var(--ink);
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
 /* ─── TOAST ─── */
 .toast {
   position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
