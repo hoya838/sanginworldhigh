@@ -66,13 +66,13 @@ export default function ResultScreen({
           {/* Conti Board */}
           {contiBoardUrl && (
             <div className="ref-images-section">
-              <p className="ref-images-label">6컷 콘티보드</p>
+              <p className="ref-images-label">스토리보드 이미지</p>
               <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', background: 'var(--bg)' }}>
-                <img src={contiBoardUrl} alt="콘티보드" style={{ width: '100%', display: 'block' }} />
+                <img src={contiBoardUrl} alt="스토리보드" style={{ width: '100%', display: 'block' }} />
                 <a
                   className="ref-image-download"
-                  href={makeDownloadUrl(contiBoardUrl, '콘티보드.jpg')}
-                  download="콘티보드.jpg"
+                  href={makeDownloadUrl(contiBoardUrl, '스토리보드.jpg')}
+                  download="스토리보드.jpg"
                 >
                   ↓
                 </a>

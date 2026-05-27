@@ -4,7 +4,7 @@ import { useState } from 'react'
 type Tab = 'conti' | 'video'
 
 const TAB_LABELS: Record<Tab, string> = {
-  conti: '콘티보드',
+  conti: '스토리보드',
   video: '영상 프롬프트',
 }
 
