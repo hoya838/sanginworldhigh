@@ -15,5 +15,6 @@ export async function GET() {
   const step3c = (() => { try { return JSON.parse(readFileSync(join(PROMPTS_DIR, 'step3c.json'), 'utf-8')).prompt } catch { return '' } })()
   const step0_studio = (() => { try { return JSON.parse(readFileSync(join(PROMPTS_DIR, 'step0_studio.json'), 'utf-8')).prompt } catch { return '' } })()
   const step2_conti = (() => { try { return JSON.parse(readFileSync(join(PROMPTS_DIR, 'step2_conti.json'), 'utf-8')).prompt } catch { return '' } })()
-  return NextResponse.json({ step1, step1b, step1_5, step2, step3, step3a, step3b, step3c, step0_studio, step2_conti })
+  const step_storyboard = (() => { try { return readFileSync(join(PROMPTS_DIR, 'step_storyboard.txt'), 'utf-8') } catch { return '' } })()
+  return NextResponse.json({ step1, step1b, step1_5, step2, step3, step3a, step3b, step3c, step0_studio, step2_conti, step_storyboard })
 }

@@ -118,4 +118,5 @@ export interface Prompts {
   step3c?: string
   step0_studio?: string
   step2_conti?: string
+  step_storyboard?: string
 }

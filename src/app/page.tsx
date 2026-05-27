@@ -286,32 +286,19 @@ export default function Home() {
     ))
   }
 
-  // ─── CONTI BOARD PARSING ───
-  function parseContiImagePrompt(text: string): ImagePrompt {
-    const block = text.match(/\[CONTI IMAGE PROMPT\]([\s\S]*?)(?:\n---|\n\[CHARACTER|\n\[SEEDANCE|$)/)
+  // ─── STORYBOARD PARSING ───
+  function parseStoryboardImagePrompt(text: string): ImagePrompt {
+    const block = text.match(/\[STORYBOARD IMAGE PROMPT\]([\s\S]*?)\[\/STORYBOARD IMAGE PROMPT\]/)
     if (!block) return {
-      prompt: 'Professional advertising film storyboard sheet, 6 panels in 2x3 grid layout, movie director conti board style, black and white pencil sketch illustration, panel numbers 1-6, thin black borders, white paper background',
-      negativePrompt: 'blurry, low quality, color photo, watermark, misaligned panels, CGI, 3D render',
+      prompt: '6-panel advertising storyboard reference sheet, 2x3 grid layout, 16:9 landscape format, film director conti board illustration style, panel numbers 1-6, pencil sketch with spot color accents, white paper background, thin black panel borders, professional layout',
+      negativePrompt: 'blurry, watermark, low quality, CGI, 3D render, misaligned grid, extra panels, portrait orientation',
     }
     const promptMatch = block[1].match(/Prompt:\s*([\s\S]+?)(?:\nNegative:|$)/)
     const negMatch = block[1].match(/Negative:\s*(.+?)(?:\n|$)/)
     return {
-      prompt: promptMatch?.[1]?.trim() || block[1].trim().substring(0, 600),
-      negativePrompt: negMatch?.[1]?.trim() || 'blurry, low quality, color, watermark, misaligned panels',
+      prompt: promptMatch?.[1]?.trim() || block[1].trim().substring(0, 500),
+      negativePrompt: negMatch?.[1]?.trim() || 'blurry, watermark, low quality, CGI, 3D render, misaligned grid, extra panels, portrait orientation',
     }
-  }
-
-  function extractSeedancePrompt(text: string): string {
-    const block = text.match(/\[SEEDANCE VIDEO PROMPT\]([\s\S]*?)(?:\n\[NARRATION\]|\n---|\n\[|$)/)
-    if (!block) return text.substring(0, 800)
-
-    let prompt = block[1].trim()
-    // Remove brand names (consecutive caps)
-    prompt = prompt.replace(/\b[A-Z]{2,}(?:\s+[A-Z0-9]{2,}){1,4}\b/g, '')
-    // Remove quoted text
-    prompt = prompt.replace(/"[^"]{1,80}"/g, '')
-    prompt = prompt.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim()
-    return prompt || text.substring(0, 800)
   }
 
   // ─── IMAGE GENERATION ───
@@ -523,7 +510,7 @@ export default function Home() {
   // ─── MAIN GENERATION FLOW ───
   async function startGeneration() {
     if (!studioSheet) { showToast('스튜디오 샷을 먼저 생성해주세요.'); return }
-    if (!prompts?.step2_conti) { showToast('프롬프트 로딩 중입니다.'); return }
+    if (!prompts?.step_storyboard) { showToast('프롬프트 로딩 중입니다.'); return }
     if (!config.geminiKey) { setSettingsOpen(true); return }
 
     const desc = videoDescription.trim()
@@ -535,10 +522,10 @@ export default function Home() {
     setScreen('processing')
 
     let currentStep = 'unknown'
-    let contiBoardUrl = ''
+    let storyboardImageUrl = ''
 
     try {
-      // ── STEP 1: CONTI BOARD ──
+      // ── STEP 1: STORYBOARD ──
       currentStep = 'conti'
       updateStep(0, 'active', '주제와 이미지를 분석하고 있어요.')
 
@@ -565,34 +552,35 @@ export default function Home() {
         backgroundImageUrl = bgUrl
       }
 
-      // Gemini: generate 6-cut conti board + Seedance prompts
-      updateStep(0, 'active', '6컷 콘티보드를 제작하고 있어요.')
+      // Gemini: generate storyboard via 스토리보드.md prompt
+      updateStep(0, 'active', '스토리보드를 제작하고 있어요.')
       const settingsCtx = buildSettingsContext()
       const topicCtx = buildTopicContext(topic)
-      const contiImgs = [...images, ...(backgroundImage ? [backgroundImage] : [])]
-      const contiRaw = await callGemini(
-        config.modelFlash,
-        prompts.step2_conti,
-        contiImgs,
-        `${topicCtx}\n${settingsCtx}\n[영상 비율] ${ratio}${backgroundImageUrl ? '\n[배경 이미지] 마지막 이미지가 배경입니다. 영상 배경으로 활용해주세요.' : ''}`
-      )
-      if (!contiRaw) throw new Error('콘티보드 생성에 실패했습니다.')
-      setGenContiScript(contiRaw)
+      const storyboardImgs = [...images, ...(backgroundImage ? [backgroundImage] : [])]
+      const storyboardExtra = [
+        topicCtx,
+        settingsCtx,
+        `[영상 비율] ${ratio}`,
+        desc ? `[영상 방향] ${desc}` : '',
+        backgroundImageUrl ? '[배경 이미지] 마지막 이미지가 배경입니다. SECTION 4 환경 설계에 반영해주세요.' : '',
+      ].filter(Boolean).join('\n')
 
-      const seedancePrompt = extractSeedancePrompt(contiRaw)
-      setGenVideoPrompt(seedancePrompt)
+      const storyboardRaw = await callGemini(config.modelFlash, prompts.step_storyboard, storyboardImgs, storyboardExtra)
+      if (!storyboardRaw) throw new Error('스토리보드 생성에 실패했습니다.')
+      setGenContiScript(storyboardRaw)
 
-      // kie.ai: generate conti board image (using studio sheet as reference)
-      updateStep(0, 'active', '콘티보드 이미지를 생성하고 있어요.')
-      const contiImagePrompt = parseContiImagePrompt(contiRaw)
-      contiBoardUrl = await generateOneImage(
+      // kie.ai: generate storyboard image (16:9, gpt-image model, studioSheet as ref)
+      updateStep(0, 'active', '스토리보드 이미지를 생성하고 있어요.')
+      const storyboardImgPrompt = parseStoryboardImagePrompt(storyboardRaw)
+      storyboardImageUrl = await generateOneImage(
         config.imageModel,
-        contiImagePrompt,
+        storyboardImgPrompt,
         [studioSheet].filter(Boolean),
         t0,
-        ratio
+        '16:9'
       )
-      updateStep(0, 'done', '콘티보드 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
+      setGenVideoPrompt('이 스토리보드 가이드를 준수해서 영상을 만들어주세요.')
+      updateStep(0, 'done', '스토리보드 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
 
       // ── STEP 2: VIDEO GENERATION ──
       currentStep = 'video'
@@ -602,16 +590,17 @@ export default function Home() {
         : 'Veo 3.1 Fast'
       updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
 
-      // Seedance: original image as first_frame, studio sheet + conti board + background as reference
+      // Seedance: first_frame = original, refs = studioSheet + storyboardImage + background
       const firstFrame = originalImageUrls[0] || studioSheet
-      const refUrls = [studioSheet, contiBoardUrl, backgroundImageUrl].filter(Boolean)
-      const url = await runVideoGenerationNew(seedancePrompt, firstFrame, refUrls, t0)
+      const refUrls = [studioSheet, storyboardImageUrl, backgroundImageUrl].filter(Boolean)
+      const videoPrompt = 'Create a cinematic advertising video following the provided storyboard and reference images exactly.'
+      const url = await runVideoGenerationNew(videoPrompt, firstFrame, refUrls, t0)
 
       updateStep(1, 'done', '영상 생성 완료!', `${Math.round((Date.now() - t0) / 1000)}s`)
 
       setVideoUrl(url)
       setElapsed(Math.round((Date.now() - t0) / 1000))
-      setGenReferenceImages([contiBoardUrl].filter(Boolean))
+      setGenReferenceImages([storyboardImageUrl].filter(Boolean))
       setScreen('result')
 
     } catch (e: any) {
