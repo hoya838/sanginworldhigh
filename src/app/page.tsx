@@ -33,7 +33,8 @@ export default function Home() {
   const [prompts, setPrompts] = useState<Prompts | null>(null)
   const [ratio, setRatio] = useState<'9:16' | '16:9'>('16:9')
   const [images, setImages] = useState<ImageItem[]>([])
-  const [description, setDescription] = useState('')
+  const [subjectDescription, setSubjectDescription] = useState('')
+  const [videoDescription, setVideoDescription] = useState('')
 
   // Input phase
   const [inputPhase, setInputPhase] = useState<InputPhase>('initial')
@@ -108,6 +109,7 @@ export default function Home() {
       setOriginalImageUrls([])
       setTopics([])
       setSelectedTopic(null)
+      setVideoDescription('')
     }
   }
 
@@ -145,6 +147,7 @@ export default function Home() {
       setOriginalImageUrls([])
       setTopics([])
       setSelectedTopic(null)
+      setVideoDescription('')
     }
   }
 
@@ -206,7 +209,7 @@ export default function Home() {
       setOriginalImageUrls(uploaded)
 
       // Gemini: analyze image → studio sheet image prompt
-      const extra = description.trim() ? `[사용자 설명]\n${description.trim()}` : ''
+      const extra = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
       const raw = await callGemini(config.modelLite, prompts.step0_studio, images, extra)
       const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       const parsed = JSON.parse(jsonStr)
@@ -240,10 +243,12 @@ export default function Home() {
     setSelectedTopic(null)
 
     try {
-      const desc = description.trim()
+      const desc = videoDescription.trim()
+      const subjectCtx = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
       const settingsCtx = buildSettingsContext()
       const extra = [
-        desc ? `[사용자 설명]\n${desc}` : '',
+        subjectCtx,
+        desc ? `[영상 방향]\n${desc}` : '',
         settingsCtx,
       ].filter(Boolean).join('\n')
 
@@ -251,7 +256,6 @@ export default function Home() {
       const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       const parsed = JSON.parse(jsonStr)
       setTopics(parsed.topics || [])
-      setInputPhase('topics')
     } catch (e: any) {
       showToast(`오류: ${e.message}`)
     } finally {
@@ -506,7 +510,7 @@ export default function Home() {
     if (!prompts?.step2_conti) { showToast('프롬프트 로딩 중입니다.'); return }
     if (!config.geminiKey) { setSettingsOpen(true); return }
 
-    const desc = description.trim()
+    const desc = videoDescription.trim()
     if (!selectedTopic && !desc) { setShowTopicHint(true); return }
 
     const t0 = Date.now()
@@ -527,7 +531,8 @@ export default function Home() {
       if (!topic) {
         currentStep = 'step1b'
         const settingsCtx = buildSettingsContext()
-        const extra = `[사용자 설명]\n${desc}\n[영상 비율]\n${ratio}\n${settingsCtx}`
+        const subjectCtx = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
+        const extra = [subjectCtx, desc ? `[영상 방향]\n${desc}` : '', `[영상 비율]\n${ratio}`, settingsCtx].filter(Boolean).join('\n')
         const raw = await callGemini(config.modelLite, prompts.step1b, images, extra)
         const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
         const parsed = JSON.parse(jsonStr)
@@ -596,7 +601,8 @@ export default function Home() {
     setTopics([])
     setSelectedTopic(null)
     setTopicsLoading(false)
-    setDescription('')
+    setSubjectDescription('')
+    setVideoDescription('')
     setVideoUrl('')
     setGenContiScript('')
     setGenVideoPrompt('')
@@ -617,7 +623,7 @@ export default function Home() {
     if (window.confirm('영상을 삭제하시겠습니까?')) resetToInput()
   }
 
-  const generateEnabled = studioSheet !== '' && (description.trim().length > 0 || selectedTopic !== null)
+  const generateEnabled = studioSheet !== '' && (videoDescription.trim().length > 0 || selectedTopic !== null)
 
   return (
     <>
@@ -631,7 +637,8 @@ export default function Home() {
         <InputScreen
           ratio={ratio}
           images={images}
-          description={description}
+          subjectDescription={subjectDescription}
+          videoDescription={videoDescription}
           inputPhase={inputPhase}
           studioSheet={studioSheet}
           studioSheetLoading={studioSheetLoading}
@@ -643,7 +650,8 @@ export default function Home() {
           onRatioChange={setRatio}
           onImagesAdd={addImages}
           onImageRemove={removeImage}
-          onDescriptionChange={setDescription}
+          onSubjectDescriptionChange={setSubjectDescription}
+          onVideoDescriptionChange={setVideoDescription}
           onGenerateStudio={generateStudioSheet}
           onPersonSettingChange={setPersonSetting}
           onNarrationSettingChange={setNarrationSetting}
