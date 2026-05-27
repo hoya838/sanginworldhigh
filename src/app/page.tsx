@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import type { AppConfig, ImageItem, Prompts, Topic, ImagePrompt, Screen, StepInfo } from '../types'
+import { useState, useEffect } from 'react'
+import type {
+  AppConfig, ImageItem, Prompts, Topic, ImagePrompt,
+  Screen, StepInfo, PersonSetting, NarrationSetting, InputPhase,
+} from '../types'
 import InputScreen from '../components/InputScreen'
 import ProcessingScreen from '../components/ProcessingScreen'
 import ResultScreen from '../components/ResultScreen'
@@ -18,10 +21,8 @@ const DEFAULT_CONFIG: AppConfig = {
 }
 
 const DEFAULT_STEPS: StepInfo[] = [
-  { name: '이미지 분석',   desc: '업로드 하신 이미지를 분석하고 있어요.',         status: 'pending' },
-  { name: '스크립트 분석', desc: '영상 스크립트를 분석하고 있어요.',              status: 'pending' },
-  { name: '이미지 생성중', desc: '레퍼런스 이미지를 생성하고 있어요.',            status: 'pending' },
-  { name: '영상생성중',    desc: '이미지와 설명을 바탕으로 영상을 만들고 있어요.', status: 'pending' },
+  { name: '콘티보드 생성', desc: '광고 콘티보드를 제작하고 있어요.', status: 'pending' },
+  { name: '영상 생성중',   desc: '이미지와 콘티보드를 바탕으로 영상을 만들고 있어요.', status: 'pending' },
 ]
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
@@ -33,26 +34,38 @@ export default function Home() {
   const [ratio, setRatio] = useState<'9:16' | '16:9'>('16:9')
   const [images, setImages] = useState<ImageItem[]>([])
   const [description, setDescription] = useState('')
+
+  // Input phase
+  const [inputPhase, setInputPhase] = useState<InputPhase>('initial')
+  const [studioSheet, setStudioSheet] = useState('')
+  const [studioSheetLoading, setStudioSheetLoading] = useState(false)
+  const [originalImageUrls, setOriginalImageUrls] = useState<string[]>([])
+  const [personSetting, setPersonSetting] = useState<PersonSetting>('random')
+  const [narrationSetting, setNarrationSetting] = useState<NarrationSetting>('random')
+
+  // Topic recommendation
   const [topics, setTopics] = useState<Topic[]>([])
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null)
   const [topicsLoading, setTopicsLoading] = useState(false)
-  const [topicsVisible, setTopicsVisible] = useState(false)
+
+  // Processing
   const [steps, setSteps] = useState<StepInfo[]>(DEFAULT_STEPS)
-  const [videoUrl, setVideoUrl] = useState('')
   const [startTime, setStartTime] = useState(0)
   const [elapsed, setElapsed] = useState(0)
+
+  // Result outputs
+  const [videoUrl, setVideoUrl] = useState('')
+  const [genContiScript, setGenContiScript] = useState('')
+  const [genVideoPrompt, setGenVideoPrompt] = useState('')
+  const [genReferenceImages, setGenReferenceImages] = useState<string[]>([])
+
+  // UI state
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showImageHint, setShowImageHint] = useState(false)
   const [showTopicHint, setShowTopicHint] = useState(false)
   const [toast, setToast] = useState({ message: '', visible: false })
   const [error, setError] = useState({ step: '', message: '', visible: false })
-  // generated outputs for result screen
-  const [genStep2Output, setGenStep2Output] = useState('')
-  const [genStep3Output, setGenStep3Output] = useState('')
-  const [genReferenceImages, setGenReferenceImages] = useState<string[]>([])
-  const [genVideoPrompt, setGenVideoPrompt] = useState('')
 
-  // Load config + prompts on mount
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then((c: AppConfig) => {
       setConfig(c)
@@ -88,6 +101,14 @@ export default function Home() {
     }
     setImages(newImages)
     setShowImageHint(false)
+    // Reset to initial when new images are added
+    if (inputPhase !== 'initial') {
+      setInputPhase('initial')
+      setStudioSheet('')
+      setOriginalImageUrls([])
+      setTopics([])
+      setSelectedTopic(null)
+    }
   }
 
   function readFileAsDataURL(file: File): Promise<string> {
@@ -104,8 +125,7 @@ export default function Home() {
             else { width = Math.round(width * MAX / height); height = MAX }
           }
           const canvas = document.createElement('canvas')
-          canvas.width = width
-          canvas.height = height
+          canvas.width = width; canvas.height = height
           canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
           res(canvas.toDataURL('image/jpeg', 0.82))
         }
@@ -119,6 +139,13 @@ export default function Home() {
 
   function removeImage(idx: number) {
     setImages(imgs => imgs.filter((_, i) => i !== idx))
+    if (inputPhase !== 'initial') {
+      setInputPhase('initial')
+      setStudioSheet('')
+      setOriginalImageUrls([])
+      setTopics([])
+      setSelectedTopic(null)
+    }
   }
 
   // ─── GEMINI API ───
@@ -127,42 +154,104 @@ export default function Home() {
     for (const img of imgs) {
       parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } })
     }
-
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
-      }),
-    })
-
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
+        }),
+      }
+    )
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(`Gemini API 오류: ${(err as any)?.error?.message || res.statusText}`)
     }
-
     const data = await res.json()
     return (data.candidates?.[0]?.content?.parts?.[0]?.text || '') as string
   }
 
-  // ─── STEP 1 — 주제 추천 ───
+  // ─── SETTINGS CONTEXT ───
+  function buildSettingsContext() {
+    const personMap: Record<PersonSetting, string> = {
+      random: '랜덤 (스토리 맥락에 맞게 결정)',
+      use: '사용',
+      none: '미사용',
+    }
+    const narMap: Record<NarrationSetting, string> = {
+      random: '랜덤 (스토리 맥락에 맞게 결정)',
+      use: '사용',
+      none: '미사용',
+    }
+    return `[인물 설정] ${personMap[personSetting]}\n[나레이션 설정] ${narMap[narrationSetting]}`
+  }
+
+  function buildTopicContext(topic: Topic) {
+    return `[선택 주제] ${topic.title} / ${topic.description} / story_arc: ${topic.story_arc?.opening} → ${topic.story_arc?.build} → ${topic.story_arc?.payoff} / emotional_journey: ${topic.emotional_journey}`
+  }
+
+  // ─── STEP 0: STUDIO SHEET ───
+  async function generateStudioSheet() {
+    if (images.length === 0) { setShowImageHint(true); return }
+    if (!prompts?.step0_studio) { showToast('프롬프트 로딩 중입니다.'); return }
+    if (!config.geminiKey) { setSettingsOpen(true); return }
+    if (!config.kieKey) { setSettingsOpen(true); return }
+
+    setStudioSheetLoading(true)
+    try {
+      // Upload original images to kie.ai CDN first
+      const uploaded = await uploadOriginalImages(images)
+      setOriginalImageUrls(uploaded)
+
+      // Gemini: analyze image → studio sheet image prompt
+      const extra = description.trim() ? `[사용자 설명]\n${description.trim()}` : ''
+      const raw = await callGemini(config.modelLite, prompts.step0_studio, images, extra)
+      const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      const parsed = JSON.parse(jsonStr)
+      const studioPrompt: ImagePrompt = {
+        prompt: parsed.prompt || '',
+        negativePrompt: parsed.negativePrompt || 'text, watermark, CGI, 3D render',
+      }
+      if (!studioPrompt.prompt) throw new Error('스튜디오 시트 프롬프트 생성 실패')
+
+      // kie.ai: generate 4-angle studio sheet (1:1 square)
+      const t0 = Date.now()
+      const url = await generateOneImage(config.imageModel, studioPrompt, uploaded, t0, '1:1')
+      setStudioSheet(url)
+      setInputPhase('studio')
+      showToast('스튜디오 시트가 생성되었어요!')
+    } catch (e: any) {
+      showToast(`스튜디오 시트 생성 오류: ${e.message}`)
+    } finally {
+      setStudioSheetLoading(false)
+    }
+  }
+
+  // ─── STEP 1: TOPIC RECOMMENDATION ───
   async function runStep1() {
     if (images.length === 0) { setShowImageHint(true); return }
-    if (!prompts) { showToast('프롬프트 로딩 중입니다. 잠시 후 시도해주세요.'); return }
+    if (!prompts) { showToast('프롬프트 로딩 중입니다.'); return }
+    if (inputPhase === 'initial') { showToast('스튜디오 샷을 먼저 생성해주세요.'); return }
 
-    setTopicsVisible(true)
     setTopicsLoading(true)
     setTopics([])
     setSelectedTopic(null)
 
     try {
       const desc = description.trim()
-      const extra = desc ? `[사용자 설명]\n${desc}` : ''
+      const settingsCtx = buildSettingsContext()
+      const extra = [
+        desc ? `[사용자 설명]\n${desc}` : '',
+        settingsCtx,
+      ].filter(Boolean).join('\n')
+
       const raw = await callGemini(config.modelLite, prompts.step1 + '\nmode: detail', images, extra)
       const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       const parsed = JSON.parse(jsonStr)
       setTopics(parsed.topics || [])
+      setInputPhase('topics')
     } catch (e: any) {
       showToast(`오류: ${e.message}`)
     } finally {
@@ -177,199 +266,99 @@ export default function Home() {
     ))
   }
 
-  // ─── GENERATION FLOW ───
-  async function startGeneration() {
-    if (images.length === 0) { setShowImageHint(true); return }
-    if (!prompts) { showToast('프롬프트 로딩 중입니다.'); return }
-    if (!config.geminiKey) { setSettingsOpen(true); return }
-
-    const topicsShown = topicsVisible && !topicsLoading
-    const desc = description.trim()
-    if (topicsShown && !selectedTopic && !desc) {
-      setShowTopicHint(true); return
+  // ─── CONTI BOARD PARSING ───
+  function parseContiImagePrompt(text: string): ImagePrompt {
+    const block = text.match(/\[CONTI IMAGE PROMPT\]([\s\S]*?)(?:\n---|\n\[CHARACTER|\n\[SEEDANCE|$)/)
+    if (!block) return {
+      prompt: 'Professional advertising film storyboard sheet, 6 panels in 2x3 grid layout, movie director conti board style, black and white pencil sketch illustration, panel numbers 1-6, thin black borders, white paper background',
+      negativePrompt: 'blurry, low quality, color photo, watermark, misaligned panels, CGI, 3D render',
     }
+    const promptMatch = block[1].match(/Prompt:\s*([\s\S]+?)(?:\nNegative:|$)/)
+    const negMatch = block[1].match(/Negative:\s*(.+?)(?:\n|$)/)
+    return {
+      prompt: promptMatch?.[1]?.trim() || block[1].trim().substring(0, 600),
+      negativePrompt: negMatch?.[1]?.trim() || 'blurry, low quality, color, watermark, misaligned panels',
+    }
+  }
 
-    const t0 = Date.now()
-    setStartTime(t0)
-    setSteps(DEFAULT_STEPS.map(s => ({ ...s })))
-    setScreen('processing')
+  function extractSeedancePrompt(text: string): string {
+    const block = text.match(/\[SEEDANCE VIDEO PROMPT\]([\s\S]*?)(?:\n\[NARRATION\]|\n---|\n\[|$)/)
+    if (!block) return text.substring(0, 800)
 
-    let currentStep = 'unknown'
-    let topic = selectedTopic
-    let step2Output = ''
-    let step3Output = ''
-    let imagePrompts: ImagePrompt[] = []
-    let referenceImages: string[] = []
+    let prompt = block[1].trim()
+    // Remove brand names (consecutive caps)
+    prompt = prompt.replace(/\b[A-Z]{2,}(?:\s+[A-Z0-9]{2,}){1,4}\b/g, '')
+    // Remove quoted text
+    prompt = prompt.replace(/"[^"]{1,80}"/g, '')
+    prompt = prompt.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim()
+    return prompt || text.substring(0, 800)
+  }
+
+  // ─── IMAGE GENERATION ───
+  function buildImageInput(model: string, p: ImagePrompt, refUrls: string[], imgRatio?: string) {
+    const r = imgRatio || ratio
+    const validRefs = refUrls.filter(Boolean)
+    if (model === 'google/imagen4-fast')
+      return { prompt: p.prompt, negative_prompt: p.negativePrompt, aspect_ratio: r, num_images: '1' }
+    if (model === 'gpt-image-2-image-to-image')
+      return { prompt: p.prompt, aspect_ratio: r, resolution: '2K', ...(validRefs.length > 0 && { input_urls: validRefs }) }
+    return { prompt: p.prompt, aspect_ratio: r, resolution: '2K', output_format: 'jpg', ...(validRefs.length > 0 && { image_input: validRefs }) }
+  }
+
+  async function generateOneImage(model: string, p: ImagePrompt, refUrls: string[], t0: number, imgRatio?: string): Promise<string> {
+    const input = buildImageInput(model, p, refUrls, imgRatio)
+    console.log('[generateOneImage] model:', model, '| refs:', refUrls.filter(Boolean).length, '| ratio:', imgRatio || ratio)
+
+    const attempt = async () => {
+      const taskRes = await fetch('/api/kie/image/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, input }),
+      }).then(r => r.json())
+      const taskId = taskRes?.data?.taskId
+      if (!taskId) throw new Error(`kie.ai 이미지: taskId를 받지 못했습니다. 응답: ${JSON.stringify(taskRes)}`)
+      return pollImageTask(taskId, t0)
+    }
 
     try {
-      // ── STEP 1B (description → topic) ──
-      if (!topic) {
-        currentStep = 'step1b'
-        updateStep(0, 'active', '이미지와 설명을 바탕으로 주제를 분석하고 있어요.')
-        const extra = `[사용자 설명]\n${desc}\n[영상 비율]\n${ratio}`
-        const raw = await callGemini(config.modelLite, prompts.step1b, images, extra)
-        const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-        const parsed = JSON.parse(jsonStr)
-        topic = parsed.topics?.[0] || null
-        if (!topic) throw new Error('STEP 1B: 주제 생성에 실패했습니다.')
+      return await attempt()
+    } catch (err: any) {
+      if (err.message?.toLowerCase().includes('internal error')) {
+        console.warn('[generateOneImage] 서버 오류, 10초 후 재시도:', err.message)
+        await sleep(10000)
+        return attempt()
       }
+      throw err
+    }
+  }
 
-      // ── STEP 2 ──
-      currentStep = 'step2'
-      updateStep(0, 'active', '주제와 이미지를 바탕으로 스토리보드를 생성하고 있어요.')
-      {
-        const step2Input = topic.step2_input || [
-          `- 선택 주제: ${topic.title} / ${topic.description} / story_arc: ${topic.story_arc?.opening} → ${topic.story_arc?.build} → ${topic.story_arc?.payoff} / emotional_journey: ${topic.emotional_journey}`,
-          `- 영상 비율: ${ratio}`,
-          `- 총 길이: 10s`,
-          `- 첫 프레임 이미지: 첨부`,
-        ].join('\n')
-        step2Output = await callGemini(config.modelFlash, prompts.step2, images, step2Input)
-        if (!step2Output) throw new Error('STEP 2: 스토리보드 생성에 실패했습니다.')
-        setGenStep2Output(step2Output)
-        setGenVideoPrompt(extractVideoPrompt(step2Output))
-      }
-      updateStep(0, 'done', '스토리보드 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
-
-      // ── STEP 3: 이미지 프롬프트 생성 (3종 병렬) ──
-      currentStep = 'step3'
-      updateStep(1, 'active', '스튜디오컷, 핵심컷, 스토리보드 패널 프롬프트를 생성하고 있어요.')
-      {
-        const keyCutScene = step2Output.match(/\[KEY CUT SCENE\]([\s\S]*?)(?:\n---|\n\[|$)/)?.[1]?.trim() || ''
-        const prompt3a = prompts.step3a || prompts.step3
-        const prompt3b = prompts.step3b || prompts.step3
-        const prompt3c = prompts.step3c || ''
-        const [out3a, out3b, out3c] = await Promise.all([
-          callGemini(config.modelFlash, prompt3a, images, ''),
-          callGemini(config.modelFlash, prompt3b, images, keyCutScene ? `[KEY CUT SCENE]\n${keyCutScene}` : step2Output.slice(0, 1000)),
-          prompt3c ? callGemini(config.modelFlash, prompt3c, images, step2Output) : Promise.resolve(''),
-        ])
-        step3Output = [out3a || '', out3b || '', out3c || ''].filter(Boolean).join('\n\n')
-        if (!step3Output) throw new Error('STEP 3: 이미지 프롬프트 생성에 실패했습니다.')
-        setGenStep3Output(step3Output)
-        imagePrompts = parseStep3Prompts(step3Output)
-      }
-      updateStep(1, 'done', '이미지 프롬프트 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
-
-      // ── IMAGE GENERATION: 스튜디오컷 → 핵심컷 → 3x3 패널 순차 생성 ──
-      currentStep = 'image'
-      let originalImageUrls: string[] = []
+  async function pollImageTask(taskId: string, t0: number, maxWaitMs = 360000) {
+    const start = Date.now()
+    while (Date.now() - start < maxWaitMs) {
+      await sleep(2000)
+      let res: any
       try {
-        originalImageUrls = await uploadOriginalImages(images)
-        console.log('[startGeneration] 원본 이미지 업로드 완료:', originalImageUrls)
-      } catch (uploadErr: any) {
-        console.warn('[startGeneration] 원본 이미지 업로드 실패, image_input 없이 진행:', uploadErr.message)
+        res = await fetch(`/api/kie/image/poll?taskId=${taskId}`).then(r => r.json())
+      } catch (e: any) {
+        console.warn('[pollImageTask] 네트워크 오류, 재시도:', e.message)
+        continue
       }
-      const originalRef = originalImageUrls[0]
-
-      updateStep(2, 'active', '스튜디오컷을 생성하고 있어요.')
-      const studioCutPrompt = imagePrompts[0]
-      const studioCutUrl = studioCutPrompt
-        ? await generateOneImage(config.imageModel, studioCutPrompt, [originalRef].filter(Boolean) as string[], t0)
-        : null
-
-      updateStep(2, 'active', '핵심컷을 생성하고 있어요.')
-      const keyCutPrompt = imagePrompts[1]
-      const keyCutRefs = [originalRef, studioCutUrl].filter(Boolean) as string[]
-      const keyCutUrl = keyCutPrompt
-        ? await generateOneImage(config.imageModel, keyCutPrompt, keyCutRefs, t0)
-        : studioCutUrl
-
-      updateStep(2, 'active', '스토리보드 패널을 생성하고 있어요.')
-      const panelPrompt = imagePrompts[2]
-      const panelUrl = panelPrompt && keyCutUrl
-        ? await generateOneImage(config.imageModel, panelPrompt, [keyCutUrl], t0)
-        : null
-
-      referenceImages = [studioCutUrl, keyCutUrl, panelUrl].filter(Boolean) as string[]
-      setGenReferenceImages(referenceImages)
-      updateStep(2, 'done', '이미지 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
-
-      // ── VIDEO GENERATION ──
-      currentStep = 'video'
-      const isJobsApi = config.videoModel === 'kling' || config.videoModel === 'kling-pro' || config.videoModel === 'seedance2'
-      const modelLabel = config.videoModel === 'kling-pro' ? 'Kling 3.0 Pro' : config.videoModel === 'seedance2' ? 'Seedance 2.0' : isJobsApi ? 'Kling 3.0' : 'Veo 3.1 Fast'
-      updateStep(3, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
-      let url: string
-
-      if (isJobsApi) {
-        try {
-          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel, originalImageUrls)
-        } catch (firstErr: any) {
-          console.warn('[video] 1차 실패, 10초 후 재시도:', firstErr.message)
-          updateStep(3, 'active', `${modelLabel} 서버 오류 — 재시도 중...`)
-          await sleep(10000)
-          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, config.videoModel, originalImageUrls)
-        }
-      } else {
-        const isServerErr = (e: any) => e.message?.includes('Internal Error') || e.message?.includes('500')
-        const isAudioErr = (e: any) => e.message?.toLowerCase().includes('audio')
-
-        try {
-          url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_fast')
-        } catch (firstErr: any) {
-          if (isAudioErr(firstErr)) {
-            console.warn('[video] 오디오 필터 오류, 15초 후 1회 재시도')
-            updateStep(3, 'active', '오디오 필터 오류 — 재시도 중...')
-            await sleep(15000)
-            url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_fast')
-          } else if (!isServerErr(firstErr)) {
-            throw firstErr
-          } else {
-            console.warn('[video] veo3_fast 1차 실패, 10초 후 재시도')
-            updateStep(3, 'active', 'Veo 서버 오류 — 재시도 중...')
-            await sleep(10000)
-
-            try {
-              url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_fast')
-            } catch (secondErr: any) {
-              if (!isServerErr(secondErr)) throw secondErr
-
-              console.warn('[video] veo3_fast 2차 실패, veo3_lite로 전환')
-              updateStep(3, 'active', 'Veo 서버 오류 — veo3_lite로 전환 중...')
-              await sleep(5000)
-              url = await runVideoGeneration(step2Output, referenceImages, ratio, t0, 'veo3_lite')
-            }
-          }
-        }
+      const d = res?.data
+      const s = d?.state
+      if (s === 'success') {
+        let result: any = {}
+        try { result = JSON.parse(d.resultJson || '{}') } catch {}
+        const url = result.resultUrls?.[0]
+        if (!url) throw new Error('kie.ai 이미지: resultUrls가 비어 있습니다. (resultJson: ' + d.resultJson + ')')
+        return url as string
       }
-      updateStep(3, 'done', '영상 생성 완료!', `${Math.round((Date.now() - t0) / 1000)}s`)
-
-      setVideoUrl(url)
-      setElapsed(Math.round((Date.now() - t0) / 1000))
-      setScreen('result')
-    } catch (e: any) {
-      console.error('[오류 단계:', currentStep, ']', e)
-      setScreen('input')
-      setError({ step: currentStep, message: e.message || String(e), visible: true })
+      if (s === 'fail') throw new Error(`kie.ai 이미지 실패: ${d?.failMsg || d?.failCode || taskId}`)
+      console.log(`[pollImageTask] state="${s}", 경과=${Math.round((Date.now() - start) / 1000)}s`)
     }
+    throw new Error('kie.ai 이미지 작업 시간 초과 (6분)')
   }
 
-  // ─── PNG → JPG 변환 후 kie.ai 재업로드 (Veo FIRST_AND_LAST_FRAMES_2_VIDEO 호환) ───
-  async function convertToJpgAndUpload(imgUrl: string): Promise<string> {
-    const res = await fetch(imgUrl)
-    const blob = await res.blob()
-    const img = await createImageBitmap(blob)
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    canvas.getContext('2d')!.drawImage(img, 0, 0)
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
-    const raw = await fetch('/api/kie/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ base64Data: dataUrl, fileName: `converted_${Date.now()}.jpg` }),
-    })
-    const text = await raw.text()
-    let data: any
-    try { data = JSON.parse(text) } catch {
-      throw new Error(`변환 이미지 업로드 실패: ${text.slice(0, 200)}`)
-    }
-    if (data.error) throw new Error(`변환 이미지 업로드 실패: ${data.error}`)
-    return data.url
-  }
-
-  // ─── UPLOAD ORIGINAL IMAGES TO KIE.AI ───
+  // ─── UPLOAD ORIGINAL IMAGES ───
   async function uploadOriginalImages(imgs: ImageItem[]): Promise<string[]> {
     const urls: string[] = []
     for (const img of imgs) {
@@ -389,180 +378,82 @@ export default function Home() {
       }
       if (res.error) throw new Error(`원본 이미지 업로드 실패: ${res.error}`)
       urls.push(res.url)
-      console.log('[uploadOriginalImages] 업로드 완료:', res.url)
     }
     return urls
   }
 
-  // ─── IMAGE GENERATION ───
-  function buildImageInput(model: string, p: ImagePrompt, refUrls: string[]) {
-    const validRefs = refUrls.filter(Boolean)
-    if (model === 'google/imagen4-fast')
-      return { prompt: p.prompt, negative_prompt: p.negativePrompt, aspect_ratio: ratio, num_images: '1' }
-    if (model === 'gpt-image-2-image-to-image')
-      return { prompt: p.prompt, aspect_ratio: ratio, resolution: '2K', ...(validRefs.length > 0 && { input_urls: validRefs }) }
-    return { prompt: p.prompt, aspect_ratio: ratio, resolution: '2K', output_format: 'jpg', ...(validRefs.length > 0 && { image_input: validRefs }) }
-  }
-
-  async function generateOneImage(model: string, p: ImagePrompt, refUrls: string[], t0: number): Promise<string> {
-    const input = buildImageInput(model, p, refUrls)
-    console.log('[generateOneImage] model:', model, '| refs:', refUrls.filter(Boolean).length)
-
-    const attempt = async () => {
-      const taskRes = await fetch('/api/kie/image/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, input }),
-      }).then(r => r.json())
-      const taskId = taskRes?.data?.taskId
-      if (!taskId) throw new Error(`kie.ai 이미지: taskId를 받지 못했습니다. 응답: ${JSON.stringify(taskRes)}`)
-      const imgUrl = await pollImageTask(taskId, t0)
-      console.log('[generateOneImage] 생성 URL:', imgUrl)
-      return imgUrl
-    }
-
-    try {
-      return await attempt()
-    } catch (err: any) {
-      if (err.message?.toLowerCase().includes('internal error')) {
-        console.warn('[generateOneImage] 서버 오류, 10초 후 재시도:', err.message)
-        await sleep(10000)
-        return attempt()
-      }
-      throw err
-    }
-  }
-
-  async function runImageGeneration(imagePrompts: ImagePrompt[], model: string, t0: number, originalImageUrls: string[] = [], contentCategory: string = '') {
-    if (imagePrompts.length === 0) return []
-
-    const originalRef = originalImageUrls[0]
-
-    // 3A → 3B 파이프 적용 불가 케이스:
-    //   space: 특정 피사체 없음 — 원본(공간 자체)이 가장 완전한 레퍼런스
-    //   person_with_product / person_with_food: 피사체 2개 — 3A가 한 쪽만 커버, 원본이 둘 다 포함
-    //   unknown(핑거프린트 실패): 원본이 가장 안전
-    const useOriginalForAll = !contentCategory ||
-      contentCategory === 'space' ||
-      contentCategory === 'person_with_product' ||
-      contentCategory === 'person_with_food'
-
-    if (useOriginalForAll) {
-      console.log(`[runImageGeneration] ${contentCategory || 'unknown'}: 원본 직접 사용`)
-      const results: string[] = []
-      for (const p of imagePrompts) {
-        results.push(await generateOneImage(model, p, [originalRef].filter(Boolean) as string[], t0))
-      }
-      return results
-    }
-
-    console.log(`[runImageGeneration] ${contentCategory}: 원본 참조 병렬 생성`)
-    return Promise.all(imagePrompts.map(p => generateOneImage(model, p, [originalRef].filter(Boolean) as string[], t0)))
-  }
-
-  async function pollImageTask(taskId: string, t0: number, maxWaitMs = 360000) {
-    const start = Date.now()
-    while (Date.now() - start < maxWaitMs) {
-      await sleep(2000)
-      let res: any
-      try {
-        res = await fetch(`/api/kie/image/poll?taskId=${taskId}`).then(r => r.json())
-      } catch (e: any) {
-        console.warn('[pollImageTask] 네트워크 오류, 재시도:', e.message)
-        continue
-      }
-      console.log('[pollImageTask]', JSON.stringify(res))
-      const d = res?.data
-      const s = d?.state
-      if (s === 'success') {
-        let result: any = {}
-        try { result = JSON.parse(d.resultJson || '{}') } catch {}
-        const url = result.resultUrls?.[0]
-        if (!url) throw new Error('kie.ai 이미지: resultUrls가 비어 있습니다. (resultJson: ' + d.resultJson + ')')
-        return url as string
-      }
-      if (s === 'fail') throw new Error(`kie.ai 이미지 실패: ${d?.failMsg || d?.failCode || taskId}`)
-      console.log(`[pollImageTask] state="${s}", 경과=${Math.round((Date.now() - start) / 1000)}s`)
-    }
-    throw new Error('kie.ai 이미지 작업 시간 초과 (6분)')
-  }
-
   // ─── VIDEO GENERATION ───
-  async function runVideoGeneration(step2Output: string, referenceImages: string[], ratio: string, t0: number, model: string = 'kling', originalImageUrls: string[] = []) {
-    const videoPrompt = extractVideoPrompt(step2Output)
-    const imageUrls = referenceImages.slice(0, 2)
-
-    console.log('[runVideoGeneration] model:', model)
-    console.log('[runVideoGeneration] imageUrls:', imageUrls)
-    console.log('[runVideoGeneration] prompt:', videoPrompt.slice(0, 200))
-
+  async function runVideoGenerationNew(
+    prompt: string,
+    firstFrameUrl: string,
+    refUrls: string[],
+    t0: number
+  ): Promise<string> {
+    const model = config.videoModel
     let requestBody: Record<string, unknown>
     let provider: string
 
-    if (model === 'kling' || model === 'kling-pro') {
-      provider = 'kling'
-      requestBody = {
-        model: 'kling-3.0/video',
-        input: {
-          prompt: videoPrompt,
-          aspect_ratio: ratio,
-          duration: '10',
-          mode: model === 'kling-pro' ? 'pro' : 'std',
-          sound: false,
-          ...(imageUrls.length >= 1 && { image_urls: imageUrls }),
-        },
-      }
-    } else if (model === 'seedance2') {
+    if (model === 'seedance2') {
       provider = 'seedance'
-      // first_frame_url = 핵심컷 (referenceImages[1]) — 스토리 히어로 씬에서 영상 시작
-      // imageUrls[0]=스튜디오컷, imageUrls[1]=핵심컷, imageUrls[2]=3x3패널
-      // 핵심컷 → first_frame_url (Start Frame)
-      // 스튜디오컷 + 3x3패널 → reference_image_urls (Reference)
-      const seedanceFirstFrame = imageUrls[1] || imageUrls[0] || originalImageUrls[0]
-      const seedanceRefs = [imageUrls[0], imageUrls[2]].filter(Boolean)
       requestBody = {
         model: 'bytedance/seedance-2',
         input: {
-          prompt: videoPrompt,
+          prompt,
           aspect_ratio: ratio,
           duration: 10,
           resolution: '1080p',
           generate_audio: true,
-          ...(seedanceFirstFrame && { first_frame_url: seedanceFirstFrame }),
-          ...(seedanceRefs.length > 0 && { reference_image_urls: seedanceRefs }),
+          ...(firstFrameUrl && { first_frame_url: firstFrameUrl }),
+          ...(refUrls.length > 0 && { reference_image_urls: refUrls }),
+        },
+      }
+    } else if (model === 'kling' || model === 'kling-pro') {
+      provider = 'kling'
+      requestBody = {
+        model: 'kling-3.0/video',
+        input: {
+          prompt,
+          aspect_ratio: ratio,
+          duration: '10',
+          mode: model === 'kling-pro' ? 'pro' : 'std',
+          sound: false,
+          ...(refUrls.length >= 1 && { image_urls: refUrls.slice(0, 2) }),
         },
       }
     } else {
       provider = 'veo'
       requestBody = {
-        prompt: videoPrompt,
+        prompt,
         model,
         aspect_ratio: ratio,
         resolution: '1080p',
         enableTranslation: false,
-        ...(imageUrls.length >= 2 && {
-          imageUrls: imageUrls.slice(0, 2),
-          generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO',
-        }),
-        ...(imageUrls.length === 1 && {
-          imageUrls,
-          generationType: 'REFERENCE_2_VIDEO',
-        }),
+        ...(refUrls.length >= 2 && { imageUrls: refUrls.slice(0, 2), generationType: 'FIRST_AND_LAST_FRAMES_2_VIDEO' }),
+        ...(refUrls.length === 1 && { imageUrls: refUrls, generationType: 'REFERENCE_2_VIDEO' }),
       }
     }
 
-    console.log('[runVideoGeneration] 최종 요청 body:', JSON.stringify(requestBody))
+    console.log('[runVideoGenerationNew] model:', model, '| refs:', refUrls.length, '| firstFrame:', !!firstFrameUrl)
+    console.log('[runVideoGenerationNew] prompt:', prompt.slice(0, 200))
 
-    const taskRes = await fetch('/api/kie/video/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, ...requestBody }),
-    }).then(r => r.json())
-    console.log('[runVideoGeneration] taskRes:', JSON.stringify(taskRes))
+    const attempt = async () => {
+      const taskRes = await fetch('/api/kie/video/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, ...requestBody }),
+      }).then(r => r.json())
+      const taskId = taskRes?.data?.taskId
+      if (!taskId) throw new Error(`kie.ai 영상: taskId를 받지 못했습니다. 응답: ${JSON.stringify(taskRes)}`)
+      return pollVideoTask(taskId, t0, provider)
+    }
 
-    const taskId = taskRes?.data?.taskId
-    if (!taskId) throw new Error(`kie.ai 영상: taskId를 받지 못했습니다. 응답: ${JSON.stringify(taskRes)}`)
-    return pollVideoTask(taskId, t0, provider)
+    try {
+      return await attempt()
+    } catch (firstErr: any) {
+      console.warn('[video] 1차 실패, 10초 후 재시도:', firstErr.message)
+      await sleep(10000)
+      return attempt()
+    }
   }
 
   async function pollVideoTask(taskId: string, t0: number, provider: string = 'kling', maxWaitMs = 480000) {
@@ -583,148 +474,142 @@ export default function Home() {
           if (!url) throw new Error('영상: resultUrls가 비어 있습니다.')
           return url as string
         }
-        if (state === 'fail') {
-          const detail = d?.failMsg || d?.failCode || taskId
-          throw new Error(`영상 생성 실패\n${detail}`)
-        }
+        if (state === 'fail') throw new Error(`영상 생성 실패\n${d?.failMsg || d?.failCode || taskId}`)
         console.log(`[pollVideoTask] state="${state}", 경과=${Math.round((Date.now() - start) / 1000)}s`)
       } else {
         const flag = res?.data?.successFlag
         const response = res?.data?.response
-
         if (flag === 1 || flag === 0) {
-          // resultUrls 우선, 없으면 originUrls 폴백 (kie.ai가 successFlag 업데이트 전에 originUrls를 먼저 채우는 경우 대응)
           let urls = response?.resultUrls
           let urlArr = urls
           if (typeof urls === 'string') { try { urlArr = JSON.parse(urls) } catch { urlArr = [urls] } }
           let url = Array.isArray(urlArr) ? urlArr[0] : urlArr
-
           if (!url) {
             const origins = response?.originUrls
             url = Array.isArray(origins) ? origins[0] : origins
           }
-
           if (flag === 1 && !url) throw new Error('kie.ai 영상: resultUrls가 비어 있습니다.')
           if (url) return url as string
         }
-
         if (flag === 2 || flag === 3) {
           const d = res?.data
-          const detail = d?.failMsg || d?.failCode || response?.errorMessage || JSON.stringify(d)
-          throw new Error(`kie.ai 영상 생성 실패\n${detail}`)
+          throw new Error(`kie.ai 영상 생성 실패\n${d?.failMsg || d?.failCode || response?.errorMessage || JSON.stringify(d)}`)
         }
       }
     }
     throw new Error('영상 작업 시간 초과 (8분)')
   }
 
-  // ─── HELPERS ───
-  function parseStep3Prompts(text: string): ImagePrompt[] {
-    const prompts: ImagePrompt[] = []
-    const fallback = 'CGI, 3D render, illustration, watermark, text, plastic skin, distorted face, extra limbs'
+  // ─── MAIN GENERATION FLOW ───
+  async function startGeneration() {
+    if (!studioSheet) { showToast('스튜디오 샷을 먼저 생성해주세요.'); return }
+    if (!prompts?.step2_conti) { showToast('프롬프트 로딩 중입니다.'); return }
+    if (!config.geminiKey) { setSettingsOpen(true); return }
 
-    const extractFromBlock = (block: string): ImagePrompt => {
-      const m = block.match(/Prompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\n[A-Z\[]|$)/s)
-      return {
-        prompt: m?.[1]?.trim() || block.trim().substring(0, 500),
-        negativePrompt: m?.[2]?.trim() || fallback,
+    const desc = description.trim()
+    if (!selectedTopic && !desc) { setShowTopicHint(true); return }
+
+    const t0 = Date.now()
+    setStartTime(t0)
+    setSteps(DEFAULT_STEPS.map(s => ({ ...s })))
+    setScreen('processing')
+
+    let currentStep = 'unknown'
+    let contiBoardUrl = ''
+
+    try {
+      // ── STEP 1: CONTI BOARD ──
+      currentStep = 'conti'
+      updateStep(0, 'active', '주제와 이미지를 분석하고 있어요.')
+
+      // Resolve topic (auto-generate if not selected)
+      let topic = selectedTopic
+      if (!topic) {
+        currentStep = 'step1b'
+        const settingsCtx = buildSettingsContext()
+        const extra = `[사용자 설명]\n${desc}\n[영상 비율]\n${ratio}\n${settingsCtx}`
+        const raw = await callGemini(config.modelLite, prompts.step1b, images, extra)
+        const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        const parsed = JSON.parse(jsonStr)
+        topic = parsed.topics?.[0] || null
+        if (!topic) throw new Error('주제 생성에 실패했습니다.')
+        currentStep = 'conti'
       }
+
+      // Gemini: generate 6-cut conti board + Seedance prompts
+      updateStep(0, 'active', '6컷 콘티보드를 제작하고 있어요.')
+      const settingsCtx = buildSettingsContext()
+      const topicCtx = buildTopicContext(topic)
+      const contiRaw = await callGemini(
+        config.modelFlash,
+        prompts.step2_conti,
+        images,
+        `${topicCtx}\n${settingsCtx}\n[영상 비율] ${ratio}`
+      )
+      if (!contiRaw) throw new Error('콘티보드 생성에 실패했습니다.')
+      setGenContiScript(contiRaw)
+
+      const seedancePrompt = extractSeedancePrompt(contiRaw)
+      setGenVideoPrompt(seedancePrompt)
+
+      // kie.ai: generate conti board image (using studio sheet as reference)
+      updateStep(0, 'active', '콘티보드 이미지를 생성하고 있어요.')
+      const contiImagePrompt = parseContiImagePrompt(contiRaw)
+      contiBoardUrl = await generateOneImage(
+        config.imageModel,
+        contiImagePrompt,
+        [studioSheet].filter(Boolean),
+        t0,
+        ratio
+      )
+      updateStep(0, 'done', '콘티보드 생성 완료', `${Math.round((Date.now() - t0) / 1000)}s`)
+
+      // ── STEP 2: VIDEO GENERATION ──
+      currentStep = 'video'
+      const modelLabel = config.videoModel === 'seedance2' ? 'Seedance 2.0'
+        : config.videoModel === 'kling-pro' ? 'Kling 3.0 Pro'
+        : config.videoModel === 'kling' ? 'Kling 3.0'
+        : 'Veo 3.1 Fast'
+      updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
+
+      // Seedance: original image as first_frame, studio sheet + conti board as reference
+      const firstFrame = originalImageUrls[0] || studioSheet
+      const refUrls = [studioSheet, contiBoardUrl].filter(Boolean)
+      const url = await runVideoGenerationNew(seedancePrompt, firstFrame, refUrls, t0)
+
+      updateStep(1, 'done', '영상 생성 완료!', `${Math.round((Date.now() - t0) / 1000)}s`)
+
+      setVideoUrl(url)
+      setElapsed(Math.round((Date.now() - t0) / 1000))
+      setGenReferenceImages([contiBoardUrl].filter(Boolean))
+      setScreen('result')
+
+    } catch (e: any) {
+      console.error('[오류 단계:', currentStep, ']', e)
+      setScreen('input')
+      setError({ step: currentStep, message: e.message || String(e), visible: true })
     }
-
-    // 새 파이프라인: [STUDIO CUT] → [KEY CUT] → [STORYBOARD PANEL]
-    const studioCut = text.match(/\[STUDIO CUT\]([\s\S]*?)(?=\[KEY CUT\]|\[STORYBOARD PANEL\]|\[--|$)/)
-    const keyCut = text.match(/\[KEY CUT\]([\s\S]*?)(?=\[STORYBOARD PANEL\]|\[--|$)/)
-    const panelCut = text.match(/\[STORYBOARD PANEL\]([\s\S]*?)(?=\[--|$)/)
-    if (studioCut || keyCut || panelCut) {
-      if (studioCut) prompts.push(extractFromBlock(studioCut[1]))
-      if (keyCut) prompts.push(extractFromBlock(keyCut[1]))
-      if (panelCut) prompts.push(extractFromBlock(panelCut[1]))
-      return prompts
-    }
-
-    // 레거시: [3A REFERENCE SHEET] / [3B STORYBOARD PANELS]
-    const ref3a = text.match(/\[3A REFERENCE SHEET\]([\s\S]*?)(?=\[3B STORYBOARD PANELS\]|\[--|$)/)
-    const ref3b = text.match(/\[3B STORYBOARD PANELS\]([\s\S]*?)(?=\[--|$)/)
-    if (ref3a || ref3b) {
-      if (ref3a) prompts.push(extractFromBlock(ref3a[1]))
-      if (ref3b) prompts.push(extractFromBlock(ref3b[1]))
-    } else {
-      const s1 = text.match(/\[SCENE 1\]\s*\nPrompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\nAspect Ratio:|$)/s)
-      const s2 = text.match(/\[SCENE 2\]\s*\nPrompt:\s*(.+?)(?:\nNegative Prompt:\s*(.+?))?(?:\nAspect Ratio:|$)/s)
-      if (s1) prompts.push({ prompt: s1[1].trim(), negativePrompt: s1[2]?.trim() || fallback })
-      if (s2) prompts.push({ prompt: s2[1].trim(), negativePrompt: s2[2]?.trim() || fallback })
-    }
-
-    if (prompts.length === 0) prompts.push({ prompt: text.substring(0, 500), negativePrompt: fallback })
-    return prompts
-  }
-
-  function extractVideoPrompt(step2Text: string) {
-    // Priority: [SEEDANCE VIDEO PROMPT] block (Korean timestamp format)
-    const seedanceMatch = step2Text.match(/\[SEEDANCE VIDEO PROMPT\]([\s\S]*?)(?:\n---|\n\[|$)/)
-    if (seedanceMatch) return seedanceMatch[1].trim()
-
-    const charRefMatch = step2Text.match(/Character Reference:\s*(.+)/)
-    const charRef = charRefMatch ? charRefMatch[1].trim() : ''
-
-    // Panel N | format (new multi-panel storyboard)
-    const panelBlocks = [...step2Text.matchAll(/Panel \d+\s*\|[^\n]*\n([\s\S]*?)(?=Panel \d+\s*\||---|\[|$)/g)]
-    if (panelBlocks.length > 0) {
-      return panelBlocks.map(m => m[1].replace(/^(?:Shot|Desc|Camera|Motion)[^\n]*\n?/gm, '').trim()).filter(Boolean).join(', cut to ')
-    }
-
-    const s1 = step2Text.match(/Scene 1\s*\|[^\n]*\n([\s\S]*?)(?:\n---|\nScene 2|$)/)
-    const s2 = step2Text.match(/Scene 2\s*\|[^\n]*\n([\s\S]*?)(?:\n---|\nStyle:|$)/)
-
-    function cleanScene(raw: string): string {
-      return raw
-        .replace(/^Light:.*$/m, '').replace(/^Focus:.*$/m, '').replace(/^Pace:.*$/m, '').trim()
-        // "same person as Character Reference" → 실제 charRef 값으로 치환
-        .replace(/same person as Character Reference/gi, charRef || '')
-        .split('\n').filter(l => l.trim()).join(', ')
-    }
-
-    let scenePart = ''
-    if (s1) scenePart = cleanScene(s1[1])
-    if (s2) {
-      const s2clean = cleanScene(s2[1])
-      if (s2clean) scenePart += ', cut to ' + s2clean
-    }
-
-    // charRef는 scenePart 앞에 한 번만 붙임 (덮어쓰기 버그 수정)
-    let prompt = charRef ? `Character: ${charRef}. ${scenePart}` : scenePart
-
-    // Color 블록 제거 — "skin tones", "deep black" 등이 Google 오디오 필터 트리거
-    prompt = prompt.replace(/,\s*Color:[^,]+(?:,(?!\s*cut\s+to)[^,]+)*/gi, '')
-
-    // 따옴표 텍스트 / text·label·logo·brand·inscription 묘사 제거
-    prompt = prompt
-      .replace(/"[^"]{1,80}"/g, '')
-      .replace(/\b(large|small|big|smaller|tiny|bold)?\s*(black|white|bold|visible|central|printed|front|back|side)?\s*(text|label|logo|brand|inscription|characters)\b[^,]*/gi, '')
-
-    // 연속 대문자 브랜드명 제거 (예: VAL HYO TOMATO, VALHYO 등)
-    prompt = prompt
-      .replace(/\b[A-Z]{2,}(?:\s+[A-Z0-9]{2,}){1,4}\b/g, '')
-      .replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim()
-
-    return prompt || step2Text.substring(0, 800)
   }
 
   function resetToInput() {
     setImages([])
     setTopics([])
     setSelectedTopic(null)
-    setTopicsVisible(false)
     setTopicsLoading(false)
     setDescription('')
     setVideoUrl('')
-    setGenStep2Output('')
-    setGenStep3Output('')
-    setGenReferenceImages([])
+    setGenContiScript('')
     setGenVideoPrompt('')
+    setGenReferenceImages([])
     setSteps(DEFAULT_STEPS.map(s => ({ ...s })))
     setShowImageHint(false)
     setShowTopicHint(false)
+    setInputPhase('initial')
+    setStudioSheet('')
+    setStudioSheetLoading(false)
+    setOriginalImageUrls([])
+    setPersonSetting('random')
+    setNarrationSetting('random')
     setScreen('input')
   }
 
@@ -732,9 +617,10 @@ export default function Home() {
     if (window.confirm('영상을 삭제하시겠습니까?')) resetToInput()
   }
 
+  const generateEnabled = studioSheet !== '' && (description.trim().length > 0 || selectedTopic !== null)
+
   return (
     <>
-      {/* Settings button always visible on input screen */}
       {screen === 'input' && (
         <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 50 }}>
           <button className="btn-settings" onClick={() => setSettingsOpen(true)}>⚙ API 설정</button>
@@ -746,18 +632,25 @@ export default function Home() {
           ratio={ratio}
           images={images}
           description={description}
+          inputPhase={inputPhase}
+          studioSheet={studioSheet}
+          studioSheetLoading={studioSheetLoading}
+          personSetting={personSetting}
+          narrationSetting={narrationSetting}
           topics={topics}
           selectedTopicId={selectedTopic?.id ?? null}
           topicsLoading={topicsLoading}
-          topicsVisible={topicsVisible}
           onRatioChange={setRatio}
           onImagesAdd={addImages}
           onImageRemove={removeImage}
           onDescriptionChange={setDescription}
+          onGenerateStudio={generateStudioSheet}
+          onPersonSettingChange={setPersonSetting}
+          onNarrationSettingChange={setNarrationSetting}
           onRecommend={runStep1}
           onTopicSelect={t => { setSelectedTopic(t); setShowTopicHint(false) }}
           onGenerate={startGeneration}
-          generateEnabled={images.length > 0 && (description.trim().length > 0 || selectedTopic !== null)}
+          generateEnabled={generateEnabled}
           showImageHint={showImageHint}
           showTopicHint={showTopicHint}
         />
@@ -772,9 +665,9 @@ export default function Home() {
           username={config.username}
           elapsed={elapsed}
           videoUrl={videoUrl}
+          studioSheet={studioSheet}
           referenceImages={genReferenceImages}
-          step2Output={genStep2Output}
-          step3Output={genStep3Output}
+          contiScript={genContiScript}
           videoPrompt={genVideoPrompt}
           onNew={resetToInput}
           onDelete={handleDelete}

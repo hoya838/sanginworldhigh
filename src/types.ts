@@ -83,6 +83,9 @@ export interface ImagePrompt {
   negativePrompt: string
 }
 
+export type PersonSetting = 'random' | 'use' | 'none'
+export type NarrationSetting = 'random' | 'use' | 'none'
+export type InputPhase = 'initial' | 'studio' | 'topics'
 export type Screen = 'input' | 'processing' | 'result'
 export type StepStatus = 'pending' | 'active' | 'done'
 
@@ -112,4 +115,6 @@ export interface Prompts {
   step3a?: string
   step3b?: string
   step3c?: string
+  step0_studio?: string
+  step2_conti?: string
 }

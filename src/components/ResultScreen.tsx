@@ -6,17 +6,17 @@ interface ResultScreenProps {
   username: string
   elapsed: number
   videoUrl: string
+  studioSheet: string
   referenceImages: string[]
-  step2Output: string
-  step3Output: string
+  contiScript: string
   videoPrompt: string
   onNew: () => void
   onDelete: () => void
 }
 
 export default function ResultScreen({
-  username, elapsed, videoUrl, referenceImages,
-  step2Output, step3Output, videoPrompt,
+  username, elapsed, videoUrl, studioSheet, referenceImages,
+  contiScript, videoPrompt,
   onNew, onDelete,
 }: ResultScreenProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -24,6 +24,8 @@ export default function ResultScreen({
   function makeDownloadUrl(url: string, filename: string) {
     return `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`
   }
+
+  const contiBoardUrl = referenceImages[0] || ''
 
   return (
     <div className="screen active" id="screen-result">
@@ -44,22 +46,36 @@ export default function ResultScreen({
             ↓ 영상 다운로드
           </a>
 
-          {referenceImages.length > 0 && (
+          {/* Studio Sheet */}
+          {studioSheet && (
             <div className="ref-images-section">
-              <p className="ref-images-label">생성된 레퍼런스 이미지</p>
-              <div className="ref-images-grid">
-                {referenceImages.map((url, i) => (
-                  <div className="ref-image-item" key={i}>
-                    <img src={url} alt={`레퍼런스 이미지 ${i + 1}`} />
-                    <a
-                      className="ref-image-download"
-                      href={makeDownloadUrl(url, `이미지_${i + 1}.jpg`)}
-                      download={`이미지_${i + 1}.jpg`}
-                    >
-                      ↓
-                    </a>
-                  </div>
-                ))}
+              <p className="ref-images-label">다각도 스튜디오 시트</p>
+              <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', background: 'var(--bg)' }}>
+                <img src={studioSheet} alt="스튜디오 시트" style={{ width: '100%', display: 'block' }} />
+                <a
+                  className="ref-image-download"
+                  href={makeDownloadUrl(studioSheet, '스튜디오_시트.jpg')}
+                  download="스튜디오_시트.jpg"
+                >
+                  ↓
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* Conti Board */}
+          {contiBoardUrl && (
+            <div className="ref-images-section">
+              <p className="ref-images-label">6컷 콘티보드</p>
+              <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', background: 'var(--bg)' }}>
+                <img src={contiBoardUrl} alt="콘티보드" style={{ width: '100%', display: 'block' }} />
+                <a
+                  className="ref-image-download"
+                  href={makeDownloadUrl(contiBoardUrl, '콘티보드.jpg')}
+                  download="콘티보드.jpg"
+                >
+                  ↓
+                </a>
               </div>
             </div>
           )}
@@ -78,8 +94,7 @@ export default function ResultScreen({
       <PromptsDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        step2Output={step2Output}
-        step3Output={step3Output}
+        contiScript={contiScript}
         videoPrompt={videoPrompt}
       />
     </div>

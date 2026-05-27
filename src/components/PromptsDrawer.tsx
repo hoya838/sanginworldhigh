@@ -1,29 +1,26 @@
 'use client'
 import { useState } from 'react'
 
-type Tab = 'storyboard' | 'image' | 'video'
+type Tab = 'conti' | 'video'
 
 const TAB_LABELS: Record<Tab, string> = {
-  storyboard: '스토리보드',
-  image: '이미지 프롬프트',
+  conti: '콘티보드',
   video: '영상 프롬프트',
 }
 
 interface PromptsDrawerProps {
   open: boolean
   onClose: () => void
-  step2Output: string
-  step3Output: string
+  contiScript: string
   videoPrompt: string
 }
 
-export default function PromptsDrawer({ open, onClose, step2Output, step3Output, videoPrompt }: PromptsDrawerProps) {
-  const [tab, setTab] = useState<Tab>('storyboard')
+export default function PromptsDrawer({ open, onClose, contiScript, videoPrompt }: PromptsDrawerProps) {
+  const [tab, setTab] = useState<Tab>('conti')
   const [copied, setCopied] = useState(false)
 
   const contents: Record<Tab, string> = {
-    storyboard: step2Output,
-    image: step3Output,
+    conti: contiScript,
     video: videoPrompt,
   }
 
