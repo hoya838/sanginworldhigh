@@ -86,6 +86,7 @@ export interface ImagePrompt {
 export type PersonSetting = 'random' | 'use' | 'none'
 export type NarrationSetting = 'random' | 'use' | 'none'
 export type ContentMode = 'reels' | 'ad' | 'random'
+export type MarketMode = 'domestic' | 'global'
 export type InputPhase = 'initial' | 'studio'
 export type Screen = 'input' | 'processing' | 'result'
 export type StepStatus = 'pending' | 'active' | 'done'

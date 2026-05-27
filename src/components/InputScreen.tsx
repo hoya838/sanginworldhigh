@@ -1,6 +1,6 @@
 'use client'
 import { useRef } from 'react'
-import type { ImageItem, Topic, PersonSetting, NarrationSetting, ContentMode, InputPhase } from '../types'
+import type { ImageItem, Topic, PersonSetting, NarrationSetting, ContentMode, MarketMode, InputPhase } from '../types'
 
 interface InputScreenProps {
   ratio: '9:16' | '16:9'
@@ -25,6 +25,8 @@ interface InputScreenProps {
   onNarrationSettingChange: (s: NarrationSetting) => void
   contentMode: ContentMode
   onContentModeChange: (m: ContentMode) => void
+  marketMode: MarketMode
+  onMarketModeChange: (m: MarketMode) => void
   backgroundImage: ImageItem | null
   onBackgroundImageAdd: (file: File) => void
   onBackgroundImageRemove: () => void
@@ -53,6 +55,7 @@ export default function InputScreen({
   onSubjectDescriptionChange, onVideoDescriptionChange,
   onGenerateStudio, onPersonSettingChange, onNarrationSettingChange,
   contentMode, onContentModeChange,
+  marketMode, onMarketModeChange,
   backgroundImage, onBackgroundImageAdd, onBackgroundImageRemove,
   onRecommend, onTopicSelect, onGenerate,
   generateEnabled, showImageHint, showTopicHint,
@@ -246,6 +249,20 @@ export default function InputScreen({
                       key={v}
                       className={`option-btn${contentMode === v ? ' active' : ''}`}
                       onClick={() => onContentModeChange(v)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="option-group">
+                <span className="option-label">지역</span>
+                <div className="option-btns">
+                  {([['domestic', '국내'], ['global', '글로벌']] as [MarketMode, string][]).map(([v, label]) => (
+                    <button
+                      key={v}
+                      className={`option-btn${marketMode === v ? ' active' : ''}`}
+                      onClick={() => onMarketModeChange(v)}
                     >
                       {label}
                     </button>

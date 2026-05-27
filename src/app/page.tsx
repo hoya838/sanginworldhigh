@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import type {
   AppConfig, ImageItem, Prompts, Topic, ImagePrompt,
-  Screen, StepInfo, PersonSetting, NarrationSetting, ContentMode, InputPhase,
+  Screen, StepInfo, PersonSetting, NarrationSetting, ContentMode, MarketMode, InputPhase,
 } from '../types'
 import InputScreen from '../components/InputScreen'
 import ProcessingScreen from '../components/ProcessingScreen'
@@ -44,6 +44,7 @@ export default function Home() {
   const [personSetting, setPersonSetting] = useState<PersonSetting>('random')
   const [narrationSetting, setNarrationSetting] = useState<NarrationSetting>('random')
   const [contentMode, setContentMode] = useState<ContentMode>('random')
+  const [marketMode, setMarketMode] = useState<MarketMode>('domestic')
   const [backgroundImage, setBackgroundImage] = useState<ImageItem | null>(null)
 
   // Topic recommendation
@@ -200,7 +201,21 @@ export default function Home() {
       use: '사용',
       none: '미사용',
     }
-    return `[인물 설정] ${personMap[personSetting]}\n[나레이션 설정] ${narMap[narrationSetting]}`
+    const modeMap: Record<ContentMode, string> = {
+      reels: '릴스용 (먹방/언박싱/챌린지/바이럴 포맷)',
+      ad: '광고용 (TV/브랜드 광고, 시네마틱)',
+      random: '랜덤',
+    }
+    const marketMap: Record<MarketMode, string> = {
+      domestic: '국내 — 등장 인물은 반드시 한국인(동아시아 한국계) 외모·스타일로 설정',
+      global: '글로벌 — 등장 인물은 외국인/다양한 인종으로 설정',
+    }
+    return [
+      `[인물 설정] ${personMap[personSetting]}`,
+      `[나레이션 설정] ${narMap[narrationSetting]}`,
+      `[콘텐츠 모드] ${modeMap[contentMode]}`,
+      `[지역 설정] ${marketMap[marketMode]}`,
+    ].join('\n')
   }
 
   function buildTopicContext(topic: Topic) {
@@ -258,14 +273,10 @@ export default function Home() {
       const desc = videoDescription.trim()
       const subjectCtx = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
       const settingsCtx = buildSettingsContext()
-      const modeCtx = contentMode === 'reels' ? '[콘텐츠 모드] 릴스용'
-        : contentMode === 'ad' ? '[콘텐츠 모드] 광고용'
-        : '[콘텐츠 모드] 랜덤'
       const extra = [
         subjectCtx,
         desc ? `[영상 방향]\n${desc}` : '',
         settingsCtx,
-        modeCtx,
       ].filter(Boolean).join('\n')
 
       const raw = await callGemini(config.modelLite, prompts.step1 + '\nmode: detail', images, extra)
@@ -630,6 +641,7 @@ export default function Home() {
     setPersonSetting('random')
     setNarrationSetting('random')
     setContentMode('random')
+    setMarketMode('domestic')
     setBackgroundImage(null)
     setScreen('input')
   }
@@ -672,6 +684,8 @@ export default function Home() {
           onNarrationSettingChange={setNarrationSetting}
           contentMode={contentMode}
           onContentModeChange={setContentMode}
+          marketMode={marketMode}
+          onMarketModeChange={setMarketMode}
           backgroundImage={backgroundImage}
           onBackgroundImageAdd={addBackgroundImage}
           onBackgroundImageRemove={removeBackgroundImage}
