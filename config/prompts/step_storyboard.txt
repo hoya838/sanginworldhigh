@@ -275,6 +275,36 @@ Production language:
 - Reference grammar: Patagonia campaigns / Apple "Shot on iPhone" / Glossier
 
 ================================================================
+USER SETTINGS — READ BEFORE STEP 3
+================================================================
+
+The user's input will contain these values. Apply them strictly.
+
+[인물 설정] value handling:
+  사용     → A person (character) MUST appear in the storyboard.
+             Include them in SECTION 1: CHARACTER REFERENCE.
+             Feature them in at least 3 of 6 frames.
+             Use back view / shoulder / hands — NO face generation.
+  미사용   → NO person appears anywhere in the storyboard.
+             Product/food is the sole subject across all 6 frames.
+             Remove or skip SECTION 1: CHARACTER REFERENCE entirely.
+  랜덤     → Decide based on story context and detected style mode.
+             If the style mode suggests lifestyle/talent-driven, include a person.
+             If mode suggests hero-product or luxury, omit person.
+
+[나레이션 설정] value handling:
+  사용     → Include narration/voiceover guidance in SECTION 7: CINEMATOGRAPHY NOTES.
+             Note which frames have VO, suggest tone (warm/authoritative/intimate etc).
+             Add implied narration cue to each FRAME entry: "VO: [brief line direction]"
+  미사용   → Pure visual storytelling. No VO/narration cues anywhere.
+             Story must be communicated through visuals alone.
+  랜덤     → Decide based on story context and emotional register.
+             If INTIMATE or SERENE → narration often fits.
+             If KINETIC or POWERFUL → visuals-only often fits.
+
+If neither [인물 설정] nor [나레이션 설정] is present in input, treat both as 랜덤.
+
+================================================================
 STEP 3 — STORYBOARD PROMPT GENERATION
 ================================================================
 
