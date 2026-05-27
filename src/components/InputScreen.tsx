@@ -1,6 +1,6 @@
 'use client'
 import { useRef } from 'react'
-import type { ImageItem, Topic, PersonSetting, NarrationSetting, InputPhase } from '../types'
+import type { ImageItem, Topic, PersonSetting, NarrationSetting, ContentMode, InputPhase } from '../types'
 
 interface InputScreenProps {
   ratio: '9:16' | '16:9'
@@ -23,6 +23,8 @@ interface InputScreenProps {
   onGenerateStudio: () => void
   onPersonSettingChange: (s: PersonSetting) => void
   onNarrationSettingChange: (s: NarrationSetting) => void
+  contentMode: ContentMode
+  onContentModeChange: (m: ContentMode) => void
   backgroundImage: ImageItem | null
   onBackgroundImageAdd: (file: File) => void
   onBackgroundImageRemove: () => void
@@ -50,6 +52,7 @@ export default function InputScreen({
   onRatioChange, onImagesAdd, onImageRemove,
   onSubjectDescriptionChange, onVideoDescriptionChange,
   onGenerateStudio, onPersonSettingChange, onNarrationSettingChange,
+  contentMode, onContentModeChange,
   backgroundImage, onBackgroundImageAdd, onBackgroundImageRemove,
   onRecommend, onTopicSelect, onGenerate,
   generateEnabled, showImageHint, showTopicHint,
@@ -231,6 +234,20 @@ export default function InputScreen({
                       onClick={() => onNarrationSettingChange(v)}
                     >
                       {OPTION_LABELS[v]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="option-group">
+                <span className="option-label">영상 유형</span>
+                <div className="option-btns">
+                  {([['reels', '릴스용'], ['ad', '광고용'], ['random', '랜덤']] as [ContentMode, string][]).map(([v, label]) => (
+                    <button
+                      key={v}
+                      className={`option-btn${contentMode === v ? ' active' : ''}`}
+                      onClick={() => onContentModeChange(v)}
+                    >
+                      {label}
                     </button>
                   ))}
                 </div>

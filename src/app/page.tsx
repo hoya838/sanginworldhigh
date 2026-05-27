@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import type {
   AppConfig, ImageItem, Prompts, Topic, ImagePrompt,
-  Screen, StepInfo, PersonSetting, NarrationSetting, InputPhase,
+  Screen, StepInfo, PersonSetting, NarrationSetting, ContentMode, InputPhase,
 } from '../types'
 import InputScreen from '../components/InputScreen'
 import ProcessingScreen from '../components/ProcessingScreen'
@@ -43,6 +43,7 @@ export default function Home() {
   const [originalImageUrls, setOriginalImageUrls] = useState<string[]>([])
   const [personSetting, setPersonSetting] = useState<PersonSetting>('random')
   const [narrationSetting, setNarrationSetting] = useState<NarrationSetting>('random')
+  const [contentMode, setContentMode] = useState<ContentMode>('random')
   const [backgroundImage, setBackgroundImage] = useState<ImageItem | null>(null)
 
   // Topic recommendation
@@ -257,10 +258,14 @@ export default function Home() {
       const desc = videoDescription.trim()
       const subjectCtx = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
       const settingsCtx = buildSettingsContext()
+      const modeCtx = contentMode === 'reels' ? '[콘텐츠 모드] 릴스용'
+        : contentMode === 'ad' ? '[콘텐츠 모드] 광고용'
+        : '[콘텐츠 모드] 랜덤'
       const extra = [
         subjectCtx,
         desc ? `[영상 방향]\n${desc}` : '',
         settingsCtx,
+        modeCtx,
       ].filter(Boolean).join('\n')
 
       const raw = await callGemini(config.modelLite, prompts.step1 + '\nmode: detail', images, extra)
@@ -636,6 +641,7 @@ export default function Home() {
     setOriginalImageUrls([])
     setPersonSetting('random')
     setNarrationSetting('random')
+    setContentMode('random')
     setBackgroundImage(null)
     setScreen('input')
   }
@@ -676,6 +682,8 @@ export default function Home() {
           onGenerateStudio={generateStudioSheet}
           onPersonSettingChange={setPersonSetting}
           onNarrationSettingChange={setNarrationSetting}
+          contentMode={contentMode}
+          onContentModeChange={setContentMode}
           backgroundImage={backgroundImage}
           onBackgroundImageAdd={addBackgroundImage}
           onBackgroundImageRemove={removeBackgroundImage}
