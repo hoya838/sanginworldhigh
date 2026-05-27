@@ -34,7 +34,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           value={form.geminiKey}
           onChange={e => setForm({ ...form, geminiKey: e.target.value })}
         />
-        <p className="modal-hint">STEP 1·1B·2·3 에 사용됩니다 (gemini-2.5-flash / flash-lite)</p>
+        <p className="modal-hint">스튜디오 샷 분석·주제 추천·콘티보드·영상 프롬프트 생성에 사용됩니다</p>
 
         <label htmlFor="kie-key">kie.ai API Key</label>
         <input
@@ -43,7 +43,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           value={form.kieKey}
           onChange={e => setForm({ ...form, kieKey: e.target.value })}
         />
-        <p className="modal-hint">이미지 생성 + 영상 생성 (Kling / Veo) 에 사용됩니다</p>
+        <p className="modal-hint">스튜디오 시트·콘티보드 이미지 생성 + 영상 생성에 사용됩니다</p>
 
         <label htmlFor="username">사용자 이름 (처리 화면 표시용)</label>
         <input
@@ -67,7 +67,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
         </select>
         <p className="modal-hint">영상 생성에 사용할 AI 모델을 선택합니다</p>
 
-        <label htmlFor="image-model">이미지 생성 모델 (STEP 3)</label>
+        <label htmlFor="image-model">이미지 생성 모델 (스튜디오 시트·콘티보드)</label>
         <select
           id="image-model"
           value={form.imageModel}
@@ -78,7 +78,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           <option value="google/imagen4-fast">Google Imagen 4 Fast — 텍스트→이미지</option>
         </select>
 
-        <label htmlFor="model-lite">Gemini 모델 — STEP 1·1B (주제 추천)</label>
+        <label htmlFor="model-lite">Gemini 모델 — 스튜디오 샷 분석·주제 추천</label>
         <select
           id="model-lite"
           value={form.modelLite}
@@ -89,7 +89,7 @@ export default function SettingsModal({ open, config, onClose, onSave }: Setting
           <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
         </select>
 
-        <label htmlFor="model-flash">Gemini 모델 — STEP 2·3 (스토리보드·프롬프트)</label>
+        <label htmlFor="model-flash">Gemini 모델 — 콘티보드·영상 프롬프트 생성</label>
         <select
           id="model-flash"
           value={form.modelFlash}
