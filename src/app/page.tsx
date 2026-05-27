@@ -219,9 +219,9 @@ export default function Home() {
       }
       if (!studioPrompt.prompt) throw new Error('스튜디오 시트 프롬프트 생성 실패')
 
-      // kie.ai: generate 4-angle studio sheet (1:1 square)
+      // kie.ai: generate 4-angle studio sheet (16:9, 2x2 grid)
       const t0 = Date.now()
-      const url = await generateOneImage(config.imageModel, studioPrompt, uploaded, t0, '1:1')
+      const url = await generateOneImage(config.imageModel, studioPrompt, uploaded, t0, '16:9')
       setStudioSheet(url)
       setInputPhase('studio')
       showToast('스튜디오 시트가 생성되었어요!')
