@@ -306,8 +306,9 @@ export default function Home() {
     }
     const promptMatch = block[1].match(/Prompt:\s*([\s\S]+?)(?:\nNegative:|$)/)
     const negMatch = block[1].match(/Negative:\s*(.+?)(?:\n|$)/)
+    const rawPrompt = promptMatch?.[1]?.trim() || block[1].trim().substring(0, 1500)
     return {
-      prompt: promptMatch?.[1]?.trim() || block[1].trim().substring(0, 500),
+      prompt: rawPrompt.length > 1500 ? rawPrompt.substring(0, 1500) : rawPrompt,
       negativePrompt: negMatch?.[1]?.trim() || 'blurry, watermark, low quality, CGI, 3D render, misaligned grid, extra panels, portrait orientation',
     }
   }
@@ -350,7 +351,7 @@ export default function Home() {
     }
   }
 
-  async function pollImageTask(taskId: string, t0: number, maxWaitMs = 360000) {
+  async function pollImageTask(taskId: string, t0: number, maxWaitMs = 600000) {
     const start = Date.now()
     while (Date.now() - start < maxWaitMs) {
       await sleep(2000)
@@ -373,7 +374,7 @@ export default function Home() {
       if (s === 'fail') throw new Error(`kie.ai 이미지 실패: ${d?.failMsg || d?.failCode || taskId}`)
       console.log(`[pollImageTask] state="${s}", 경과=${Math.round((Date.now() - start) / 1000)}s`)
     }
-    throw new Error('kie.ai 이미지 작업 시간 초과 (6분)')
+    throw new Error('kie.ai 이미지 작업 시간 초과 (10분)')
   }
 
   // ─── UPLOAD ORIGINAL IMAGES ───
