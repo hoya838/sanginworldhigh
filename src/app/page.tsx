@@ -383,7 +383,7 @@ export default function Home() {
   // ─── URL → ImageItem ───
   async function urlToImageItem(url: string): Promise<ImageItem | null> {
     try {
-      const res = await fetch(url)
+      const res = await fetch(`/api/download?url=${encodeURIComponent(url)}`)
       if (!res.ok) return null
       const blob = await res.blob()
       const mimeType = blob.type || 'image/jpeg'
