@@ -602,9 +602,9 @@ export default function Home() {
         : 'Veo 3.1 Fast'
       updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
 
-      // Seedance: refs only — original embedded in storyboard chain, no first_frame constraint
-      const refUrls = [storyboardImageUrl, backgroundImageUrl].filter(Boolean)
-      const videoPrompt = 'Create a cinematic advertising video following the provided storyboard and reference images exactly.'
+      // Seedance: studio sheet anchors product visuals, storyboard drives scene composition
+      const refUrls = [studioSheet, storyboardImageUrl, backgroundImageUrl].filter(Boolean)
+      const videoPrompt = 'Create a cinematic advertising video strictly following the storyboard layout and scene sequence. Maintain the exact product appearance, design, colors, and proportions shown in the multi-angle studio reference sheet throughout every frame.'
       const url = await runVideoGenerationNew(videoPrompt, '', refUrls, t0)
 
       updateStep(1, 'done', '영상 생성 완료!', `${Math.round((Date.now() - t0) / 1000)}s`)
