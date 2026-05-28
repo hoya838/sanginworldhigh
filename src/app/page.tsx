@@ -605,9 +605,9 @@ export default function Home() {
         : 'Veo 3.1 Fast'
       updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
 
-      // Seedance: studio images only for product fidelity — storyboard guides via text prompt only
-      const refUrls = [...studioImages.slice(0, 3), backgroundImageUrl].filter(Boolean)
-      const videoPrompt = 'Create a cinematic advertising video following the storyboard scene sequence and composition described. Maintain the exact product appearance, design, colors, and proportions from the studio reference images throughout every frame.'
+      // Seedance: processed studio images anchor product, storyboard drives scene composition
+      const refUrls = [...studioImages.slice(0, 3), storyboardImageUrl, backgroundImageUrl].filter(Boolean)
+      const videoPrompt = 'Create a cinematic advertising video strictly following the storyboard layout and scene sequence. Maintain the exact product appearance, design, colors, and proportions shown in the multi-angle studio reference sheet throughout every frame.'
       const url = await runVideoGenerationNew(videoPrompt, '', refUrls, t0)
 
       updateStep(1, 'done', '영상 생성 완료!', `${Math.round((Date.now() - t0) / 1000)}s`)
