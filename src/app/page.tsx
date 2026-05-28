@@ -249,7 +249,7 @@ export default function Home() {
       // kie.ai: pass max 2 refs — too many reference images confuse the model and cause design averaging
       const studioRefs = uploaded.slice(0, 2)
       const t0 = Date.now()
-      const url = await generateOneImage(config.imageModel, studioPrompt, studioRefs, t0, '16:9')
+      const url = await generateOneImage('nano-banana-2', studioPrompt, studioRefs, t0, '16:9')
       setStudioSheet(url)
       setInputPhase('studio')
       showToast('스튜디오 시트가 생성되었어요!')
