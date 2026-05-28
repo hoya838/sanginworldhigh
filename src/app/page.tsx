@@ -243,7 +243,7 @@ export default function Home() {
 
       const t0 = Date.now()
       const results = await Promise.allSettled(
-        uploaded.slice(0, 1).map(url => generateOneImage('gpt-image-2-image-to-image', bgPrompt, [url], t0, '1:1'))
+        uploaded.slice(0, 1).map(url => generateOneImage('gpt-image-2-image-to-image', bgPrompt, [url], t0, '16:9'))
       )
       const processed = results
         .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
