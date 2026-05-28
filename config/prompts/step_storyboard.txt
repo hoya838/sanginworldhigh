@@ -344,3 +344,71 @@ Never describe what is visually on screen. Say what it means.
 ================================================================
 END OF SYSTEM PROMPT v4.1
 ================================================================
+
+================================================================
+CAPTION PATCH — v4.2 ADDITION
+================================================================
+
+CAPTION MODE DETECTION
+If the user's input includes [콘텐츠 유형] or [content_type] value of any of the following:
+  "모션그래픽형" / "UGC편집형" / "퍼포먼스광고형"
+→ CAPTION MODE = ON
+
+If content_type is "공감나레이션형" / "제품광고형" / "스토리텔링광고형" → CAPTION MODE = OFF (default)
+If content_type is not provided → CAPTION MODE = OFF
+
+----------------------------------------------------------------
+WHEN CAPTION MODE = ON
+----------------------------------------------------------------
+
+For EACH of the 6 frames in SECTION 5, after the camera bullet points (and after NARRATION line if present),
+add one line labeled CAPTION: with the on-screen text for that frame.
+
+Format:
+FRAME 1 — [SCENE TITLE] — [timecode]s:
+[Scene description]
+CAMERA: [Shot type]
+• [camera detail 1]
+• [camera detail 2]
+• [camera detail 3]
+NARRATION: "[VO line]"  ← only if NARRATION MODE = ON
+CAPTION: "[on-screen text — Korean — max 15 characters]"
+
+CAPTION WRITING RULES:
+
+RULE C1 — MAX 15 CHARACTERS PER FRAME
+Short enough to read in 1–2 seconds. No full sentences.
+Examples: "토마토 발효청의 비밀" / "성분 98% 자연 유래" / "지금 바로 확인하세요"
+
+RULE C2 — TYPE-SPECIFIC TONE
+모션그래픽형 → bold keyword / statistic / question hook
+  Examples: "이거 알고 있었나요?" / "당일 배송 가능" / "3초 만에 반응"
+UGC편집형 → reaction / review snippet / honest label
+  Examples: "진짜 솔직후기" / "써보니까 달랐어요" / "이거 재구매 확정"
+퍼포먼스광고형 → problem → solution → CTA progression across 6 frames
+  Frame 1–2: problem statement  예: "피부 트러블 반복되나요?"
+  Frame 3–4: solution/product   예: "발효 성분이 다릅니다"
+  Frame 5–6: CTA                예: "지금 첫 주문 50% 할인"
+
+RULE C3 — ARC ACROSS 6 FRAMES
+Frame 1 → hook / attention grab
+Frame 2 → problem or curiosity
+Frame 3 → reveal / product intro
+Frame 4 → key benefit / USP (brand name allowed)
+Frame 5 → social proof or urgency
+Frame 6 → CTA (brand name allowed)
+
+RULE C4 — BRAND NAME MAX IN 2 FRAMES
+Only Frame 4 or Frame 6 may include product/brand name.
+
+RULE C5 — LANGUAGE: KOREAN ONLY
+All caption text must be in Korean regardless of input language.
+
+RULE C6 — NO OVERLAP WITH NARRATION
+If NARRATION MODE is also ON, caption and narration must convey different information.
+NARRATION = emotional/poetic meaning
+CAPTION = factual/action text on screen
+
+================================================================
+END OF SYSTEM PROMPT v4.2
+================================================================
