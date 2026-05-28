@@ -235,8 +235,19 @@ export default function Home() {
       const uploaded = await uploadOriginalImages(images)
       setOriginalImageUrls(uploaded)
 
-      // Gemini: analyze image → studio sheet image prompt
-      const extra = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
+      // Gemini: fingerprint — extract structured visual attributes from first 2 images
+      let fingerprintCtx = ''
+      if (prompts.step1_5) {
+        try {
+          const fpRaw = await callGemini(config.modelFlash, prompts.step1_5, images.slice(0, 2), '')
+          const fpJson = fpRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+          fingerprintCtx = `[IMAGE FINGERPRINT]\n${fpJson}\n[/IMAGE FINGERPRINT]`
+        } catch { /* non-fatal — proceed without fingerprint */ }
+      }
+
+      // Gemini: analyze image → studio sheet image prompt (fingerprint injected)
+      const subjectCtx = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
+      const extra = [subjectCtx, fingerprintCtx].filter(Boolean).join('\n')
       const raw = await callGemini(config.modelLite, prompts.step0_studio, images, extra)
       const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       const parsed = JSON.parse(jsonStr)
