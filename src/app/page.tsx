@@ -380,6 +380,25 @@ export default function Home() {
     throw new Error('kie.ai 이미지 작업 시간 초과 (10분)')
   }
 
+  // ─── URL → ImageItem ───
+  async function urlToImageItem(url: string): Promise<ImageItem | null> {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const blob = await res.blob()
+      const mimeType = blob.type || 'image/jpeg'
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string
+          const base64 = dataUrl.split(',')[1]
+          resolve({ file: new File([blob], 'studio.jpg', { type: mimeType }), dataUrl, base64, mimeType })
+        }
+        reader.readAsDataURL(blob)
+      })
+    } catch { return null }
+  }
+
   // ─── UPLOAD ORIGINAL IMAGES ───
   async function uploadOriginalImages(imgs: ImageItem[]): Promise<string[]> {
     const urls: string[] = []
@@ -571,12 +590,14 @@ export default function Home() {
       updateStep(0, 'active', '스토리보드를 제작하고 있어요.')
       const settingsCtx = buildSettingsContext()
       const topicCtx = buildTopicContext(topic)
-      const storyboardImgs = [...images, ...(backgroundImage ? [backgroundImage] : [])]
+      const studioSheetItem = studioSheet ? await urlToImageItem(studioSheet) : null
+      const storyboardImgs = [...images, ...(studioSheetItem ? [studioSheetItem] : []), ...(backgroundImage ? [backgroundImage] : [])]
       const storyboardExtra = [
         topicCtx,
         settingsCtx,
         `[영상 비율] ${ratio}`,
         desc ? `[영상 방향] ${desc}` : '',
+        studioSheetItem ? '[스튜디오 시트] 원본 이미지 다음에 첨부된 이미지가 다각도 스튜디오 시트입니다. 제품의 형태·색상·디자인 참고용으로 활용해주세요.' : '',
         backgroundImageUrl ? '[배경 이미지] 마지막 이미지가 배경입니다. SECTION 4 환경 설계에 반영해주세요.' : '',
       ].filter(Boolean).join('\n')
 
