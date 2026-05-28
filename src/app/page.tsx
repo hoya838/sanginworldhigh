@@ -39,6 +39,7 @@ export default function Home() {
   // Input phase
   const [inputPhase, setInputPhase] = useState<InputPhase>('initial')
   const [studioSheet, setStudioSheet] = useState('')
+  const [studioImages, setStudioImages] = useState<string[]>([])
   const [studioSheetLoading, setStudioSheetLoading] = useState(false)
   const [originalImageUrls, setOriginalImageUrls] = useState<string[]>([])
   const [personSetting, setPersonSetting] = useState<PersonSetting>('random')
@@ -109,6 +110,7 @@ export default function Home() {
     if (inputPhase !== 'initial') {
       setInputPhase('initial')
       setStudioSheet('')
+      setStudioImages([])
       setOriginalImageUrls([])
       setTopics([])
       setSelectedTopic(null)
@@ -157,6 +159,7 @@ export default function Home() {
     if (inputPhase !== 'initial') {
       setInputPhase('initial')
       setStudioSheet('')
+      setStudioImages([])
       setOriginalImageUrls([])
       setTopics([])
       setSelectedTopic(null)
@@ -225,45 +228,33 @@ export default function Home() {
   // ─── STEP 0: STUDIO SHEET ───
   async function generateStudioSheet() {
     if (images.length === 0) { setShowImageHint(true); return }
-    if (!prompts?.step0_studio) { showToast('프롬프트 로딩 중입니다.'); return }
-    if (!config.geminiKey) { setSettingsOpen(true); return }
     if (!config.kieKey) { setSettingsOpen(true); return }
 
     setStudioSheetLoading(true)
     try {
-      // Upload original images to kie.ai CDN first
       const uploaded = await uploadOriginalImages(images)
       setOriginalImageUrls(uploaded)
 
-      // Gemini: fingerprint — extract structured visual attributes from first 2 images
-      let fingerprintCtx = ''
-      if (prompts.step1_5) {
-        try {
-          const fpRaw = await callGemini(config.modelFlash, prompts.step1_5, images.slice(0, 2), '')
-          const fpJson = fpRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-          fingerprintCtx = `[IMAGE FINGERPRINT]\n${fpJson}\n[/IMAGE FINGERPRINT]`
-        } catch { /* non-fatal — proceed without fingerprint */ }
+      // Process each image: replace background only, keep product identical
+      const bgPrompt: ImagePrompt = {
+        prompt: 'White studio product photography. Pure white seamless background, professional soft box studio lighting, no shadows. The product is IDENTICAL to the reference image — same exact shape, proportions, colors, label design, text, logo, packaging structure, all details unchanged. Only the background is replaced with clean white studio. High-resolution commercial photography.',
+        negativePrompt: 'different product design, altered colors, changed proportions, modified label, redesigned packaging, blurry, colored background, textured background, watermark, shadow',
       }
 
-      // Gemini: analyze image → studio sheet image prompt (fingerprint injected)
-      const subjectCtx = subjectDescription.trim() ? `[피사체 설명]\n${subjectDescription.trim()}` : ''
-      const extra = [subjectCtx, fingerprintCtx].filter(Boolean).join('\n')
-      const raw = await callGemini(config.modelLite, prompts.step0_studio, images, extra)
-      const jsonStr = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      const parsed = JSON.parse(jsonStr)
-      const studioPrompt: ImagePrompt = {
-        prompt: parsed.prompt || '',
-        negativePrompt: parsed.negativePrompt || 'text, watermark, CGI, 3D render',
-      }
-      if (!studioPrompt.prompt) throw new Error('스튜디오 시트 프롬프트 생성 실패')
-
-      // kie.ai: pass max 2 refs — too many reference images confuse the model and cause design averaging
-      const studioRefs = uploaded.slice(0, 2)
       const t0 = Date.now()
-      const url = await generateOneImage('nano-banana-2', studioPrompt, studioRefs, t0, '16:9')
-      setStudioSheet(url)
+      const results = await Promise.allSettled(
+        uploaded.map(url => generateOneImage('nano-banana-2', bgPrompt, [url], t0, '1:1'))
+      )
+      const processed = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map(r => r.value)
+
+      if (processed.length === 0) throw new Error('이미지 배경 처리에 실패했습니다.')
+
+      setStudioImages(processed)
+      setStudioSheet(processed[0])
       setInputPhase('studio')
-      showToast('스튜디오 시트가 생성되었어요!')
+      showToast('스튜디오 샷이 생성되었어요!')
     } catch (e: any) {
       showToast(`스튜디오 시트 생성 오류: ${e.message}`)
     } finally {
@@ -614,8 +605,8 @@ export default function Home() {
         : 'Veo 3.1 Fast'
       updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
 
-      // Seedance: studio sheet anchors product visuals, storyboard drives scene composition
-      const refUrls = [studioSheet, storyboardImageUrl, backgroundImageUrl].filter(Boolean)
+      // Seedance: processed studio images anchor product, storyboard drives scene composition
+      const refUrls = [...studioImages.slice(0, 3), storyboardImageUrl, backgroundImageUrl].filter(Boolean)
       const videoPrompt = 'Create a cinematic advertising video strictly following the storyboard layout and scene sequence. Maintain the exact product appearance, design, colors, and proportions shown in the multi-angle studio reference sheet throughout every frame.'
       const url = await runVideoGenerationNew(videoPrompt, '', refUrls, t0)
 
@@ -649,6 +640,7 @@ export default function Home() {
     setShowTopicHint(false)
     setInputPhase('initial')
     setStudioSheet('')
+    setStudioImages([])
     setStudioSheetLoading(false)
     setOriginalImageUrls([])
     setPersonSetting('random')
@@ -681,6 +673,7 @@ export default function Home() {
           videoDescription={videoDescription}
           inputPhase={inputPhase}
           studioSheet={studioSheet}
+          studioImages={studioImages}
           studioSheetLoading={studioSheetLoading}
           personSetting={personSetting}
           narrationSetting={narrationSetting}

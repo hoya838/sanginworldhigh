@@ -9,6 +9,7 @@ interface InputScreenProps {
   videoDescription: string
   inputPhase: InputPhase
   studioSheet: string
+  studioImages: string[]
   studioSheetLoading: boolean
   personSetting: PersonSetting
   narrationSetting: NarrationSetting
@@ -48,7 +49,7 @@ const OPTION_LABELS: Record<string, string> = {
 
 export default function InputScreen({
   ratio, images, subjectDescription, videoDescription,
-  inputPhase, studioSheet, studioSheetLoading,
+  inputPhase, studioSheet, studioImages, studioSheetLoading,
   personSetting, narrationSetting,
   topics, selectedTopicId, topicsLoading,
   onRatioChange, onImagesAdd, onImageRemove,
@@ -184,9 +185,13 @@ export default function InputScreen({
                 <div className="spinner" />
                 <div>스튜디오 샷을 생성하고 있어요...</div>
               </div>
-            ) : studioSheet ? (
-              <div className="studio-img-wrap">
-                <img src={studioSheet} alt="다각도 스튜디오 시트" />
+            ) : studioImages.length > 0 ? (
+              <div className="image-preview-grid">
+                {studioImages.map((url, i) => (
+                  <div className="image-preview-item" key={i}>
+                    <img src={url} alt={`스튜디오 샷 ${i + 1}`} />
+                  </div>
+                ))}
               </div>
             ) : null}
 
