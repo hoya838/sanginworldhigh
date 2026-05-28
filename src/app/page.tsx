@@ -243,7 +243,7 @@ export default function Home() {
 
       const t0 = Date.now()
       const results = await Promise.allSettled(
-        uploaded.slice(0, 1).map(url => generateOneImage('nano-banana-2', bgPrompt, [url], t0, '1:1'))
+        uploaded.slice(0, 1).map(url => generateOneImage('gpt-image-2-image-to-image', bgPrompt, [url], t0, '1:1'))
       )
       const processed = results
         .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
@@ -323,8 +323,8 @@ export default function Home() {
     if (model === 'google/imagen4-fast')
       return { prompt: p.prompt, negative_prompt: p.negativePrompt, aspect_ratio: r, num_images: '1' }
     if (model === 'gpt-image-2-image-to-image')
-      return { prompt: p.prompt, aspect_ratio: r, resolution: '2K', ...(validRefs.length > 0 && { input_urls: validRefs }) }
-    return { prompt: p.prompt, aspect_ratio: r, resolution: '2K', output_format: 'jpg', ...(validRefs.length > 0 && { image_input: validRefs }) }
+      return { prompt: p.prompt, aspect_ratio: r, resolution: '4K', ...(validRefs.length > 0 && { input_urls: validRefs }) }
+    return { prompt: p.prompt, aspect_ratio: r, resolution: '4K', output_format: 'jpg', ...(validRefs.length > 0 && { image_input: validRefs }) }
   }
 
   async function generateOneImage(model: string, p: ImagePrompt, refUrls: string[], t0: number, imgRatio?: string): Promise<string> {
