@@ -235,10 +235,10 @@ export default function Home() {
       const uploaded = await uploadOriginalImages(images)
       setOriginalImageUrls(uploaded)
 
-      // Process each image: replace background only, keep product identical
+      // Process image: REF_ONLY_SHEET — visible surfaces only, no inference
       const bgPrompt: ImagePrompt = {
-        prompt: 'White studio product photography. Pure white seamless background, professional soft box studio lighting, no shadows. The product is IDENTICAL to the reference image — same exact shape, proportions, colors, label design, text, logo, packaging structure, all details unchanged. Only the background is replaced with clean white studio. High-resolution commercial photography.',
-        negativePrompt: 'different product design, altered colors, changed proportions, modified label, redesigned packaging, blurry, colored background, textured background, watermark, shadow',
+        prompt: 'REF_ONLY_SHEET: multi-cell product reference sheet. Pure white background. Reproduce ONLY visible surfaces from the reference image — pixel-identical geometry, proportions, colors(exact HEX), typography(exact font/weight/size/spacing/content), logo, graphics, texture, finish. Cells: one per confirmed visible angle only. Unseen sides = white cell labeled "확인 불가". +1 cell: A4 scale orthographic reference, telephoto lens, zero distortion. +1 color swatch cell: confirmed colors only with HEX code and Korean role label. +1 detail cell: typography / logo / texture / edge closeup. All cell annotations in Korean. No inference, no reconstruction, no extrapolation of any unseen surface.',
+        negativePrompt: 'inferred surfaces, reconstructed unseen sides, extrapolated design, altered proportions, changed colors, modified typography, blurry, watermark, shadow, colored background',
       }
 
       const t0 = Date.now()
