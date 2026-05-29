@@ -316,6 +316,14 @@ export default function Home() {
     }
   }
 
+  // ─── SEEDANCE PROMPT PARSING ───
+  function parseSeedancePrompt(text: string): string {
+    const block = text.match(/\[SEEDANCE PROMPTS\]([\s\S]*?)\[\/SEEDANCE PROMPTS\]/)
+    if (!block) return 'Create a cinematic advertising video strictly following the storyboard layout and scene sequence. Maintain the exact product appearance, design, colors, and proportions throughout every frame.'
+    const raw = block[1].trim()
+    return raw.length > 1500 ? raw.substring(0, 1500) : raw
+  }
+
   // ─── IMAGE GENERATION ───
   function buildImageInput(model: string, p: ImagePrompt, refUrls: string[], imgRatio?: string) {
     const r = imgRatio || ratio
@@ -626,9 +634,8 @@ export default function Home() {
         : 'Veo 3.1 Fast'
       updateStep(1, 'active', `${modelLabel}로 영상을 생성하고 있어요.`)
 
-      // Seedance: processed studio images anchor product, storyboard drives scene composition
       const refUrls = [storyboardImageUrl].filter(Boolean)
-      const videoPrompt = 'Create a cinematic advertising video strictly following the storyboard layout and scene sequence. Maintain the exact product appearance, design, colors, and proportions shown in the multi-angle studio reference sheet throughout every frame.'
+      const videoPrompt = parseSeedancePrompt(storyboardRaw)
       const url = await runVideoGenerationNew(videoPrompt, '', refUrls, t0)
 
       updateStep(1, 'done', '영상 생성 완료!', `${Math.round((Date.now() - t0) / 1000)}s`)
