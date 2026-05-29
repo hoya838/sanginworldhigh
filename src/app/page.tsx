@@ -320,8 +320,33 @@ export default function Home() {
   function parseSeedancePrompt(text: string): string {
     const block = text.match(/\[SEEDANCE PROMPTS\]([\s\S]*?)\[\/SEEDANCE PROMPTS\]/)
     if (!block) return 'Create a cinematic advertising video strictly following the storyboard layout and scene sequence. Maintain the exact product appearance, design, colors, and proportions throughout every frame.'
-    const raw = block[1].trim()
-    return raw.length > 1500 ? raw.substring(0, 1500) : raw
+
+    const raw = block[1]
+
+    // Extract aspect + style + grade from GLOBAL line
+    const globalLine = raw.match(/GLOBAL:([^\n]+)/)?.[1] || ''
+    const aspect = globalLine.match(/aspect\s+(\S+)/)?.[1] || '16:9'
+    const style = globalLine.match(/style\s+([^·\n]+)/)?.[1]?.trim() || ''
+    const grade = globalLine.match(/grade\s+([^\n.]+)/)?.[1]?.trim() || ''
+
+    // Extract per-frame ACTION + CAMERA (natural language only)
+    const frameBlocks = raw.split(/(?=FRAME \d+\s*—)/).filter(b => b.trimStart().startsWith('FRAME'))
+    const frameSummaries: string[] = []
+    for (const fb of frameBlocks.slice(0, 6)) {
+      const action = fb.match(/ACTION:\s*([^\n]+)/)?.[1]?.trim()
+      const camera = fb.match(/CAMERA:\s*([^\n]+)/)?.[1]?.trim()
+      if (action) frameSummaries.push(`${action}${camera ? '; ' + camera : ''}`)
+    }
+
+    const parts: string[] = []
+    parts.push(`Cinematic advertising video, ${aspect} format.`)
+    if (style) parts.push(`Style: ${style}.`)
+    if (grade) parts.push(`Color grade: ${grade}.`)
+    if (frameSummaries.length > 0) parts.push(frameSummaries.join('. ') + '.')
+    parts.push('Maintain consistent character appearance, identical face and wardrobe in every frame. Product appearance unchanged throughout, camera movement only, no product rotation.')
+
+    const result = parts.join(' ')
+    return result.length > 1000 ? result.substring(0, 1000) : result
   }
 
   // ─── IMAGE GENERATION ───
@@ -505,7 +530,7 @@ export default function Home() {
     }
   }
 
-  async function pollVideoTask(taskId: string, t0: number, provider: string = 'kling', maxWaitMs = 480000) {
+  async function pollVideoTask(taskId: string, t0: number, provider: string = 'kling', maxWaitMs = 600000) {
     const start = Date.now()
     await sleep(10000)
     while (Date.now() - start < maxWaitMs) {
@@ -546,7 +571,7 @@ export default function Home() {
         }
       }
     }
-    throw new Error('영상 작업 시간 초과 (8분)')
+    throw new Error('영상 작업 시간 초과 (10분)')
   }
 
   // ─── MAIN GENERATION FLOW ───
